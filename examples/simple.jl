@@ -1,6 +1,6 @@
 using Compat
 using JuMP, CPLEX
-using Main.BundleMethod
+using BundleMethod
 
 # User-defined function
 function evaluate_f(y)
