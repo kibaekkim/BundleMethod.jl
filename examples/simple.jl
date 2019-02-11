@@ -1,5 +1,3 @@
-include("../src/BundleMethod.jl")
-
 using Compat
 using JuMP, CPLEX
 using Main.BundleMethod
