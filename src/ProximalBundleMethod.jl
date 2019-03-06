@@ -1,5 +1,9 @@
 #=
-Implementation of Proximal Bundle Method
+	Implementation of Proximal Bundle Method.
+
+	The implementation is based on
+	Krzysztof C. Kiwiel, "Proximity control in bundle methods for convex nondifferentiable minimization"
+	Mathematical Programming 46(1-3), 1990
 =#
 
 abstract type ProximalBundleMethod <: AbstractBundleMethod end
@@ -59,6 +63,13 @@ function initialize!(bundle::ProximalBundleInfo)
 	@objective(bundle.m, Min,
 		  sum(θ[j] for j=1:bundle.N)
 		+ 0.5 * bundle.ext.u * sum((x[i] - bundle.ext.x0[i])^2 for i=1:bundle.n))
+
+	# Add bounding constraints if variables are splitable.
+	if bundle.splitvars
+		size_of_each_var = Int(bundle.n / bundle.N)
+		@constraint(bundle.m, [i=1:size_of_each_var],
+			sum(x[(j-1)*size_of_each_var+i] for j in 1:bundle.N) == 0)
+	end
 end
 
 function add_initial_bundles!(bundle::ProximalBundleInfo)

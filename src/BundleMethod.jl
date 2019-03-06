@@ -24,6 +24,8 @@ mutable struct BundleInfo{T<:AbstractBundleMethod}
 	fy::Array{Float64,1}	# objective values at the current iterate
 	g::Array{Float64,2}		# subgradients
 
+	splitvars::Bool	# Are variables decomposed for each function?
+
 	# user-defined function to evaluate f
 	# and return the value and its subgradients
 	evaluate_f
@@ -38,7 +40,7 @@ mutable struct BundleInfo{T<:AbstractBundleMethod}
 	# Placeholder for extended structures
 	ext
 
-	function BundleInfo(T::DataType, n::Int64, N::Int64, func)
+	function BundleInfo(T::DataType, n::Int64, N::Int64, func, splitvars = false)
 		bundle = new{T}()
 		bundle.n = n
 		bundle.N = N
@@ -48,6 +50,7 @@ mutable struct BundleInfo{T<:AbstractBundleMethod}
 		bundle.y = zeros(n)
 		bundle.fy = zeros(N)
 		bundle.g = zeros(0,0)
+		bundle.splitvars = splitvars
 		bundle.evaluate_f = func
 		bundle.bundleRefs = []
 		bundle.yk = Array{Float64,1}[]
