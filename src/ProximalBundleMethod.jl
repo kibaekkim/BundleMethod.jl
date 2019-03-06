@@ -9,7 +9,7 @@
 abstract type ProximalBundleMethod <: AbstractBundleMethod end
 
 # Algorithm-specific structure
-mutable struct BundleInfoExt
+mutable struct BundleModelExt
 	# Algorithm-specific parameters
 	u::Float64
 	u_min::Float64
@@ -29,7 +29,7 @@ mutable struct BundleInfoExt
 	i::Int64
 	α::Array{Float64,1}
 
-	function BundleInfoExt(n::Int64, N::Int64)
+	function BundleModelExt(n::Int64, N::Int64)
 		ext = new()
 		ext.u = 0.1
 		ext.u_min = 1.0e-2
@@ -51,11 +51,11 @@ mutable struct BundleInfoExt
 	end
 end
 
-const ProximalBundleInfo = BundleInfo{ProximalBundleMethod}
+const ProximalBundleModel = BundleModel{ProximalBundleMethod}
 
-function initialize!(bundle::ProximalBundleInfo)
+function initialize!(bundle::ProximalBundleModel)
 	# Attach the extended structure
-	bundle.ext = BundleInfoExt(bundle.n, bundle.N)
+	bundle.ext = BundleModelExt(bundle.n, bundle.N)
 
 	# create the initial bundle model
 	@variable(bundle.m, x[i=1:bundle.n])
@@ -72,24 +72,23 @@ function initialize!(bundle::ProximalBundleInfo)
 	end
 end
 
-function add_initial_bundles!(bundle::ProximalBundleInfo)
+function add_initial_bundles!(bundle::ProximalBundleModel)
 	# initial point evaluation
 	bundle.fy, bundle.g = bundle.evaluate_f(bundle.y)
 	bundle.ext.fx0 = bundle.fy
 
 	# add bundles
 	for j = 1:bundle.N
-		addCut(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
+		add_cut(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
 	end
 end
 
-function solve_bundle_model(bundle::ProximalBundleInfo)
+function solve_bundle_model(bundle::ProximalBundleModel)
 	# variable references
 	x = getindex(bundle.m, :x)
 	θ = getindex(bundle.m, :θ)
 
 	status = solve(bundle.m)
-	# @show (status, getobjectivevalue(bundle.m))
 
 	if status == :Optimal
 		# get solutions
@@ -106,7 +105,7 @@ function solve_bundle_model(bundle::ProximalBundleInfo)
 	return status
 end
 
-function termination_test(bundle::ProximalBundleInfo)
+function termination_test(bundle::ProximalBundleModel)
 	if bundle.ext.sum_of_v >= -bundle.ext.ϵ_s
 		println("TERMINATION: Optimal: v = ", bundle.ext.sum_of_v)
 		return true
@@ -118,7 +117,7 @@ function termination_test(bundle::ProximalBundleInfo)
 	return false
 end
 
-function evaluate_functions!(bundle::ProximalBundleInfo)
+function evaluate_functions!(bundle::ProximalBundleModel)
 	# evaluation function f
 	bundle.fy, bundle.g = bundle.evaluate_f(bundle.y)
 
@@ -126,9 +125,8 @@ function evaluate_functions!(bundle::ProximalBundleInfo)
 	descent_test(bundle)
 end
 
-function manage_bundles!(bundle::ProximalBundleInfo)
-	# @show getdual(bundle.bundleRefs)
-	ncuts_purged = purgeCuts(bundle)
+function manage_bundles!(bundle::ProximalBundleModel)
+	ncuts_purged = purge_cuts(bundle)
 
 	# variable references
 	x = getindex(bundle.m, :x)
@@ -139,12 +137,12 @@ function manage_bundles!(bundle::ProximalBundleInfo)
 		gd= bundle.g[j,:]' * bundle.ext.d
 		bundle.ext.α[j] = bundle.ext.fx0[j] - (bundle.fy[j] - gd)
 		if -bundle.ext.α[j] + gd > bundle.ext.v[j]
-			addCut(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
+			add_cut(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
 		end
 	end
 end
 
-function update_iteration!(bundle::ProximalBundleInfo)
+function update_iteration!(bundle::ProximalBundleModel)
 	# update u
 	update_weight(bundle)
 
@@ -153,10 +151,10 @@ function update_iteration!(bundle::ProximalBundleInfo)
 	bundle.ext.fx0 = bundle.ext.fx1
 end
 
-getsolution(bundle::ProximalBundleInfo)::Array{Float64,1} = bundle.ext.x0
-getobjectivevalue(bundle::ProximalBundleInfo)::Float64 = sum(bundle.ext.fx0)
+getsolution(bundle::ProximalBundleModel)::Array{Float64,1} = bundle.ext.x0
+getobjectivevalue(bundle::ProximalBundleModel)::Float64 = sum(bundle.ext.fx0)
 
-function descent_test(bundle::ProximalBundleInfo)
+function descent_test(bundle::ProximalBundleModel)
 	if sum(bundle.fy) <= sum(bundle.ext.fx0) + bundle.ext.m_L * bundle.ext.sum_of_v
 		bundle.ext.x1 = bundle.y
 		bundle.ext.fx1 = bundle.fy
@@ -166,37 +164,35 @@ function descent_test(bundle::ProximalBundleInfo)
 	end
 end
 
-function addCut(bundle::ProximalBundleInfo, g::Array{Float64,1}, fy::Float64, y::Array{Float64,1}, j::Int64; store_cuts = true)
+function add_cut(bundle::ProximalBundleModel, g::Array{Float64,1}, fy::Float64, y::Array{Float64,1}, j::Int64; store_cuts = true)
 	x = getindex(bundle.m, :x)
 	θ = getindex(bundle.m, :θ)
 	constr = @constraint(bundle.m, fy + sum(g[i] * (x[i] - y[i]) for i=1:bundle.n) <= θ[j])
-	push!(bundle.bundleRefs, constr)
 	if store_cuts
-		push!(bundle.gk, g)
-		push!(bundle.yk, deepcopy(y))
-		push!(bundle.fyk, fy)
-		push!(bundle.jk, j)
+		bundle.history[j,bundle.k] = Bundle(constr, deepcopy(y), fy, g)
 	end
 end
 
-function purgeCuts(bundle::ProximalBundleInfo)
-	ncuts = length(bundle.bundleRefs)
+function purge_cuts(bundle::ProximalBundleModel)
+	ncuts = length(bundle.history)
 	ncuts_to_purge = ncuts - bundle.ext.M_g
-	cuts_to_purge = Int64[]
-	icut = 1
-	while ncuts_to_purge > 0
-		if getdual(bundle.bundleRefs[icut]) < -1.0e-8
-			push!(cuts_to_purge, icut)
-			ncuts_to_purge -= 1
+	cuts_to_purge = Tuple{Int64,Int64}[]
+	if ncuts_to_purge > 0
+		for (refkey,hist) in bundle.history
+			if getdual(hist.ref) < -1.0e-8
+				push!(cuts_to_purge, refkey)
+				ncuts_to_purge -= 1
+			end
+			if ncuts_to_purge <= 0
+				break
+			end
 		end
-		icut += 1
 	end
 
 	if length(cuts_to_purge) > 0
-		deleteat!(bundle.fyk, cuts_to_purge)
-		deleteat!(bundle.yk, cuts_to_purge)
-		deleteat!(bundle.gk, cuts_to_purge)
-		deleteat!(bundle.jk, cuts_to_purge)
+		for refkey in cuts_to_purge
+			delete!(bundle.history, refkey)
+		end
 
 		solver = bundle.m.solver
 		bundle.m = Model(solver=solver)
@@ -204,18 +200,18 @@ function purgeCuts(bundle::ProximalBundleInfo)
 		@variable(bundle.m, θ[j=1:bundle.N])
 		@objective(bundle.m, Min,
 			  sum(θ[j] for j=1:bundle.N)
-			+ 0.5 * bundle.u * sum((x[i] - bundle.x1[i])^2 for i=1:bundle.n))
+			+ 0.5 * bundle.ext.u * sum((x[i] - bundle.ext.x1[i])^2 for i=1:bundle.n))
 
-		bundle.bundleRefs = []
-		for i in 1:length(bundle.jk)
-			addCut(bundle, bundle.gk[i], bundle.fyk[i], bundle.yk[i], bundle.jk[i], store_cuts = false)
+		for (k,h) in bundle.history
+			add_cut(bundle, h.g, h.fy, h.y, k[1], store_cuts = false)
+			delete!(bundle.history, k)
 		end
 	end
 
 	return length(cuts_to_purge)
 end
 
-function update_weight(bundle::ProximalBundleInfo)
+function update_weight(bundle::ProximalBundleModel)
 	fysum = sum(bundle.fy)
 	fx0sum = sum(bundle.ext.fx0)
 	update_objfunc = false
@@ -264,7 +260,7 @@ function update_weight(bundle::ProximalBundleInfo)
 	end
 end
 
-function display_info!(bundle::ProximalBundleInfo)
+function display_info!(bundle::ProximalBundleModel)
 	Compat.Printf.@printf("Iter %d: ncols %d, nrows %d, fx0 %e, fx1 %e, fy %e, v %e, u %e, i %d\n",
 		bundle.k, bundle.m.numCols, length(bundle.m.linconstr), sum(bundle.ext.fx0), sum(bundle.ext.fx1), sum(bundle.fy), bundle.ext.sum_of_v, bundle.ext.u, bundle.ext.i)
 end

@@ -10,10 +10,17 @@ using JuMP
 
 abstract type AbstractBundleMethod end
 
+struct Bundle
+	ref	# constraint/variable reference
+	y	# evaluation point
+	fy	# evaluation value
+	g	# subgradient
+end
+
 #=
 	This structure contains necessary information for bundle methods.
 =#
-mutable struct BundleInfo{T<:AbstractBundleMethod}
+mutable struct BundleModel{T<:AbstractBundleMethod}
 	n::Int64		# dimension in the solution space
 	N::Int64		# number of separable functions in the objective
 	m::JuMP.Model	# Bundle model
@@ -31,32 +38,24 @@ mutable struct BundleInfo{T<:AbstractBundleMethod}
 	evaluate_f
 
 	# History of bundles
-	bundleRefs	# bundle references (can be either constraint or variable)
-	yk::Array{Array{Float64,1},1}	# history of iterates
-	fyk::Array{Float64,1}			# history of function values at iterates
-	gk::Array{Array{Float64,1},1}	# history of subgradients
-	jk::Array{Int64,1}				# history of function indices
+	history::Dict{Tuple{Int64,Int64},Bundle}
 
 	# Placeholder for extended structures
 	ext
 
-	function BundleInfo(T::DataType, n::Int64, N::Int64, func, splitvars = false)
+	function BundleModel(T::DataType, n::Int64, N::Int64, func, splitvars = false)
 		bundle = new{T}()
 		bundle.n = n
 		bundle.N = N
 		bundle.m = Model()
-		bundle.k = 1
+		bundle.k = 0
 		bundle.maxiter = 500
 		bundle.y = zeros(n)
 		bundle.fy = zeros(N)
 		bundle.g = zeros(0,0)
 		bundle.splitvars = splitvars
 		bundle.evaluate_f = func
-		bundle.bundleRefs = []
-		bundle.yk = Array{Float64,1}[]
-		bundle.fyk = Float64[]
-		bundle.gk = Array{Float64,1}[]
-		bundle.jk = Int64[]
+		bundle.history = Dict{Tuple{Int64,Int64},Bundle}()
 
 		# initialize bundle model
 		initialize!(bundle)
@@ -65,7 +64,7 @@ mutable struct BundleInfo{T<:AbstractBundleMethod}
 	end
 end
 
-function run(bundle::BundleInfo{<:AbstractBundleMethod})
+function run(bundle::BundleModel{<:AbstractBundleMethod})
 
 	add_initial_bundles!(bundle)
 
@@ -90,36 +89,36 @@ end
 	For each method, the functions may be implemented.
 =#
 
-const AbstractBundleInfo = BundleInfo{AbstractBundleMethod}
+const AbstractBundleModel = BundleModel{AbstractBundleMethod}
 
-function initialize!(bundle::AbstractBundleInfo)
+function initialize!(bundle::AbstractBundleModel)
 end
 
-function add_initial_bundles!(bundle::AbstractBundleInfo)
+function add_initial_bundles!(bundle::AbstractBundleModel)
 end
 
-function solve_bundle_model(bundle::AbstractBundleInfo)
+function solve_bundle_model(bundle::AbstractBundleModel)
 	return :Optimal
 end
 
-function termination_test(bundle::AbstractBundleInfo)
+function termination_test(bundle::AbstractBundleModel)
 	return true
 end
 
-function evaluate_functions!(bundle::AbstractBundleInfo)
+function evaluate_functions!(bundle::AbstractBundleModel)
 end
 
-function manage_bundles!(bundle::AbstractBundleInfo)
+function manage_bundles!(bundle::AbstractBundleModel)
 end
 
-function update_iteration!(bundle::AbstractBundleInfo)
+function update_iteration!(bundle::AbstractBundleModel)
 end
 
-function display_info!(bundle::AbstractBundleInfo)
+function display_info!(bundle::AbstractBundleModel)
 end
 
-getsolution(bundle::AbstractBundleInfo)::Array{Float64,1} = Array{Float64,1}(undef,bundle.n)
-getobjectivevalue(bundle::AbstractBundleInfo)::Float64 = NaN
+getsolution(bundle::AbstractBundleModel)::Array{Float64,1} = Array{Float64,1}(undef,bundle.n)
+getobjectivevalue(bundle::AbstractBundleModel)::Float64 = NaN
 
 #=
  	Add the implementations of bundle methods
