@@ -127,7 +127,7 @@ getobjectivevalue(bundle::AbstractModel)::Float64 = NaN
  	Add the implementations of bundle methods
 =#
 
-include("ProximalBundleMethod.jl")
+include("ProximalMethod.jl")
 include("ProximalDualMethod.jl")
 
 end
