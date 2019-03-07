@@ -2,8 +2,6 @@ using Compat
 using JuMP, CPLEX
 using BundleMethod
 
-const BM = BundleMethod
-
 # User-defined function
 function evaluate_f(y)
 	k,n = size(a)
@@ -39,7 +37,7 @@ function test()
 	@show getvalue(vm_x)
 
 	# initialize bundle method
-	bundle = BM.BundleModel(BM.ProximalBundleMethod, n, k, evaluate_f)
+	bundle = BundleMethod.Model(BundleMethod.ProximalMethod, n, k, evaluate_f)
 
 	# set bounds
 	x = getindex(bundle.m, :x)
@@ -53,11 +51,11 @@ function test()
 	print(bundle.m)
 
 	# solve!
-	BM.run(bundle)
+	BundleMethod.run(bundle)
 
 	# print solution
-	@show BM.getobjectivevalue(bundle)
-	@show BM.getsolution(bundle)
+	@show BundleMethod.getobjectivevalue(bundle)
+	@show BundleMethod.getsolution(bundle)
 end
 
 test()
