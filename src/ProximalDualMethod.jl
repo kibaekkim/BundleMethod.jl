@@ -1,5 +1,17 @@
 #=
 	Implementation of Proximal Dual Bundle Method.
+
+	This model is the dual of that in ProximalMethod.jl.
+	A main advantage of this model may be the fact that PIPS can solve in parallel,
+	particularly when bundle.splitvars = true. This case has been studied in
+
+	Lubin et al. "On parallelizing dual decomposition in stochastic integer programming",
+	Operations Research Letters 41, 2013
+
+	Variable w can be seen as the first-stage variable in PIPS.
+	There is no first-stage constraint, but there is one second-stage constraint
+	for each scenario.
+	The objective function has both first- and second-stage variables.
 =#
 
 abstract type ProximalDualMethod <: ProximalMethod end
@@ -14,11 +26,9 @@ function initialize!(bundle::ProximalDualModel)
 	if bundle.splitvars
 		numw = Int(bundle.n / bundle.N)
 		@variable(bundle.m, w[i=1:numw])
-		@objective(bundle.m, Max,
-			-0.5 / bundle.ext.u * sum(w[i]^2 for i in 1:numw))
-	else
-		@objective(bundle.m, Max, 0)
 	end
+	# The objective will be set later in add_initial_bundles!.
+	@objective(bundle.m, Max, 0)
 	@constraint(bundle.m, cons[j=1:bundle.N], 0 == 1)
 	bundle.m.ext[:scaling_factor] = 1.0
 end
