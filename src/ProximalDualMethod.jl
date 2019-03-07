@@ -84,6 +84,13 @@ function solve_bundle_model(bundle::ProximalDualModel)
 				bundle.ext.d[i] = bundle.y[i] - bundle.ext.x0[i]
 			end
 		end
+
+		# Numerical error may occur (particularly with Ipopt).
+		numerical_error = sum(bundle.y) / bundle.n
+		bundle.y .-= numerical_error
+		bundle.ext.d .-= numerical_error
+		@assert(isapprox(sum(bundle.y), 0.0, atol = 1.0e-10))
+
 		for j=1:bundle.N
 			# We can recover θ from the dual variable value.
 			# Don't forget the scaling.
