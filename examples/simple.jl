@@ -37,7 +37,7 @@ function test()
 	@show getvalue(vm_x)
 
 	# initialize bundle method
-	bundle = BundleMethod.Model(BundleMethod.ProximalMethod, n, k, evaluate_f)
+	bundle = BundleMethod.Model{BundleMethod.ProximalMethod}(n, k, evaluate_f)
 
 	# set bounds
 	x = getindex(bundle.m, :x)

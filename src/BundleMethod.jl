@@ -45,8 +45,8 @@ mutable struct Model{T<:AbstractMethod}
 	# Placeholder for extended structures
 	ext
 
-	function Model(T::DataType, n::Int64, N::Int64, func, splitvars = false)
-		bundle = new{T}()
+	function Model{T}(n::Int64, N::Int64, func, splitvars = false) where {T<:AbstractMethod}
+		bundle = new()
 		bundle.n = n
 		bundle.N = N
 		bundle.m = JuMP.Model()
