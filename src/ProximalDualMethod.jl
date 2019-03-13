@@ -49,6 +49,28 @@ function add_initial_bundles!(bundle::ProximalDualModel)
 end
 
 function solve_bundle_model(bundle::ProximalDualModel)
+	# Initialize variables
+	if bundle.splitvars
+		w = getindex(bundle.m, :w)
+		numw = length(w)
+		for i=1:numw
+			setvalue(w[i], 0.0)
+		end
+	end
+	for j in 1:bundle.N
+		numz = 0
+		for k in 0:bundle.k
+			if haskey(bundle.history, (j,k))
+				numz += 1
+			end
+		end
+		for k in 0:bundle.k
+			if haskey(bundle.history, (j,k))
+				setvalue(bundle.history[j,k].ref, 1.0/numz)
+			end
+		end
+	end
+
 	# print(bundle.m)
 	# solve the bundle model
 	status = solve(bundle.m)
@@ -56,10 +78,6 @@ function solve_bundle_model(bundle::ProximalDualModel)
 
 	if status == :Optimal
 		# variable/constraint references
-		if bundle.splitvars
-			w = getindex(bundle.m, :w)
-			numw = length(w)
-		end
 		cons = getindex(bundle.m, :cons)
 
 		# get solutions
