@@ -8,7 +8,7 @@ module BundleMethod
 export ProximalMethod, ProximalDualMethod
 
 using Compat
-using JuMP
+using JuMP, StructJuMP, StructJuMPSolverInterface
 
 abstract type AbstractMethod end
 
@@ -49,7 +49,8 @@ mutable struct Model{T<:AbstractMethod}
 		bundle = new()
 		bundle.n = n
 		bundle.N = N
-		bundle.m = JuMP.Model()
+		# bundle.m = JuMP.Model()
+		bundle.m = StructuredModel(num_scenarios=0)
 		bundle.k = 0
 		bundle.maxiter = 500
 		bundle.y = zeros(n)

@@ -73,7 +73,8 @@ function solve_bundle_model(bundle::ProximalDualModel)
 
 	# print(bundle.m)
 	# solve the bundle model
-	status = solve(bundle.m)
+	status = solve(bundle.m;solver="PipsNlp", with_prof=false)
+	# status = solve(bundle.m)
 	# @show JuMP.getobjectivevalue(bundle.m)
 
 	if status == :Optimal
@@ -155,14 +156,15 @@ function update_objective!(bundle::ProximalDualModel)
 		# variable references
 		w = getindex(bundle.m, :w)
 		numw = length(w)
+		@show bundle.m.ext[:scaling_factor]
 
 		# update objective function
-		@objective(bundle.m, Max,
-			1. / bundle.m.ext[:scaling_factor] * sum(hist.ref
+		@objective(bundle.m, Min,
+			-1. / bundle.m.ext[:scaling_factor] * sum(hist.ref
 				* (hist.fy + sum(hist.g[i] * (bundle.ext.x1[i] - hist.y[i]) for i=1:bundle.n))
 				for (key,hist) in bundle.history
 			)
-			- 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
+			+ 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
 				* sum(
 					(w[i] - sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k))))^2
 					for i in 1:numw for j in 1:bundle.N
