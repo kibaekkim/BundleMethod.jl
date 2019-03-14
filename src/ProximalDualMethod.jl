@@ -28,7 +28,7 @@ function initialize!(bundle::ProximalDualModel)
 		@variable(bundle.m, w[i=1:numw])
 	end
 	# The objective will be set later in add_initial_bundles!.
-	@objective(bundle.m, Min, 0)
+	@NLobjective(bundle.m, Min, 0)
 	for j = 1:bundle.N
 		if j ∈ getLocalChildrenIds(bundle.m)
 			cmodel = StructuredModel(parent=bundle.m,id=j)
@@ -61,7 +61,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		w = getindex(bundle.m, :w)
 		numw = length(w)
 		for i=1:numw
-			setvalue(w[i], 0.0)
+			setvalue(w[i], 1.0)
 		end
 	end
 	for j in 1:bundle.N
@@ -125,6 +125,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		end
 		bundle.ext.sum_of_v = sum(bundle.ext.v)
 	end
+	exit()
 
 	return status
 end
@@ -174,7 +175,7 @@ function update_objective!(bundle::ProximalDualModel)
 					for (key,hist) in bundle.history if key[1] == j
 				)
 				+ 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
-					* (sum(-2 * w[i] * sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k))) for i in 1:numw)
+					* (sum(-2.0 * w[i] * sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k))) for i in 1:numw)
 					+
 					sum(sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k)))^2 for i in 1:numw)
 				)
