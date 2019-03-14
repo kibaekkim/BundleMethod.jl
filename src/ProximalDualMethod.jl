@@ -28,8 +28,13 @@ function initialize!(bundle::ProximalDualModel)
 		@variable(bundle.m, w[i=1:numw])
 	end
 	# The objective will be set later in add_initial_bundles!.
-	@objective(bundle.m, Max, 0)
-	@constraint(bundle.m, cons[j=1:bundle.N], 0 == 1)
+	@objective(bundle.m, Min, 0)
+	for j = 1:bundle.N
+		if j ∈ getLocalChildrenIds(bundle.m)
+			cmodel = StructuredModel(parent=bundle.m,id=j)
+			@constraint(cmodel, cons, 0 == 1)
+		end
+	end
 	bundle.m.ext[:scaling_factor] = 1.0
 end
 
@@ -40,7 +45,9 @@ function add_initial_bundles!(bundle::ProximalDualModel)
 
 	# add bundles
 	for j = 1:bundle.N
-		add_var(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
+		if j ∈ getLocalChildrenIds(bundle.m)
+			add_var(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
+		end
 	end
 
 	# update objective function
@@ -73,7 +80,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 
 	# print(bundle.m)
 	# solve the bundle model
-	status = solve(bundle.m;solver="PipsNlp", with_prof=false)
+	status = solve(bundle.m;solver="Ipopt", with_prof=false)
 	# status = solve(bundle.m)
 	# @show JuMP.getobjectivevalue(bundle.m)
 
@@ -156,8 +163,24 @@ function update_objective!(bundle::ProximalDualModel)
 		# variable references
 		w = getindex(bundle.m, :w)
 		numw = length(w)
-		@show bundle.m.ext[:scaling_factor]
 
+		# update objective function
+		@NLobjective(bundle.m, Min, 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor] * sum(w[i]^2 for i in 1:numw))
+		for j in getLocalChildrenIds(bundle.m)
+			cmodel = getchildren(bundle.m)[j]
+			@NLobjective(cmodel, Min,
+				-1. / bundle.m.ext[:scaling_factor] * sum(hist.ref
+					* (hist.fy + sum(hist.g[i] * (bundle.ext.x1[i] - hist.y[i]) for i=1:bundle.n))
+					for (key,hist) in bundle.history if key[1] == j
+				)
+				+ 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
+					* (sum(-2 * w[i] * sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k))) for i in 1:numw)
+					+
+					sum(sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k)))^2 for i in 1:numw)
+				)
+			)
+		end
+	else
 		# update objective function
 		@objective(bundle.m, Min,
 			-1. / bundle.m.ext[:scaling_factor] * sum(hist.ref
@@ -166,33 +189,23 @@ function update_objective!(bundle::ProximalDualModel)
 			)
 			+ 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
 				* sum(
-					(w[i] - sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k))))^2
-					for i in 1:numw for j in 1:bundle.N
-				)
-		)
-	else
-		# update objective function
-		@objective(bundle.m, Max,
-			1. / bundle.m.ext[:scaling_factor] * sum(hist.ref
-				* (hist.fy + sum(hist.g[i] * (bundle.ext.x1[i] - hist.y[i]) for i=1:bundle.n))
-				for (key,hist) in bundle.history
-			)
-			- 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
-				* sum(
 					sum(bundle.history[j,k].ref * bundle.history[j,k].g[i] for k in 0:bundle.k if haskey(bundle.history,(j,k)))^2
 					for i in 1:bundle.n for j in 1:bundle.N
 				)
 		)
 	end
+	print(bundle.m)
 end
 
 function add_var(bundle::ProximalDualModel, g::Array{Float64,1}, fy::Float64, y::Array{Float64,1}, j::Int64; store_vars = true)
 	# Add new variable
-	cons = getindex(bundle.m, :cons)
-	var = @variable(bundle.m,
+	cmodel = getchildren(bundle.m)[j]
+	cons = getindex(cmodel, :cons)
+		
+	var = @variable(cmodel,
 		z >= 0,
 		objective = 0.0, # This will be updated later.
-		inconstraints = [cons[j]],
+		inconstraints = [cons],
 		coefficients = [1.0],
 		basename = "z[$j,$(bundle.k)]")
 

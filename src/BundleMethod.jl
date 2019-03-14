@@ -50,7 +50,7 @@ mutable struct Model{T<:AbstractMethod}
 		bundle.n = n
 		bundle.N = N
 		# bundle.m = JuMP.Model()
-		bundle.m = StructuredModel(num_scenarios=0)
+		bundle.m = StructuredModel(num_scenarios=N)
 		bundle.k = 0
 		bundle.maxiter = 500
 		bundle.y = zeros(n)
