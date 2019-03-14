@@ -166,6 +166,8 @@ function update_objective!(bundle::ProximalDualModel)
 		numw = length(w)
 
 		# update objective function
+		@NLobjective(bundle.m, Min,
+		    bundle.N * 0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor] * sum(w[i]^2 for i in 1:numw)) 
 		for j in getLocalChildrenIds(bundle.m)
 			cmodel = getchildren(bundle.m)[j]
 			@NLobjective(cmodel, Min,
@@ -173,7 +175,6 @@ function update_objective!(bundle::ProximalDualModel)
 					* (hist.fy + sum(hist.g[i] * (bundle.ext.x1[i] - hist.y[i]) for i=1:bundle.n))
 					for (key,hist) in bundle.history if key[1] == j
 				)   + 
-				0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor] * sum(w[i]^2 for i in 1:numw) + 
 				0.5 / bundle.ext.u / bundle.m.ext[:scaling_factor]
 					* -2.0 * (sum(w[i] * (sum(bundle.history[j,k].ref * bundle.history[j,k].g[(j-1)*numw + i] for k in 0:bundle.k if haskey(bundle.history,(j,k)))) for i in 1:numw))
 					+
