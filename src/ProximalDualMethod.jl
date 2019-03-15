@@ -84,9 +84,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 	# status = solve(bundle.m)
 	# @show JuMP.getobjectivevalue(bundle.m)
 
-	if status == :Optimal
-		# variable/constraint references
-		cons = getindex(bundle.m, :cons)
+	if status == :Solve_Succeeded
 
 		# get solutions
 		if bundle.splitvars
@@ -118,9 +116,14 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		@assert(isapprox(sum(bundle.y), 0.0, atol = 1.0e-10))
 
 		for j=1:bundle.N
+			# variable/constraint references
+			cmodel = getchildren(bundle.m)[j]
+			cons = getindex(cmodel, :cons)
+			@show cons
+			
 			# We can recover θ from the dual variable value.
 			# Don't forget the scaling.
-			θ = bundle.m.ext[:scaling_factor] * getdual(cons[j])
+			θ = bundle.m.ext[:scaling_factor] * getdual(cons)
 			bundle.ext.v[j] = θ - bundle.ext.fx0[j]
 		end
 		bundle.ext.sum_of_v = sum(bundle.ext.v)
@@ -196,7 +199,7 @@ function update_objective!(bundle::ProximalDualModel)
 				)
 		)
 	end
-	print(bundle.m)
+	# print(bundle.m)
 end
 
 function add_var(bundle::ProximalDualModel, g::Array{Float64,1}, fy::Float64, y::Array{Float64,1}, j::Int64; store_vars = true)
