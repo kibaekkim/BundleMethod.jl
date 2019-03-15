@@ -68,7 +68,7 @@ function initialize!(bundle::ProximalModel)
 	# create the initial bundle model
 	@variable(bundle.m, x[i=1:bundle.n])
 	@variable(bundle.m, θ[j=1:bundle.N])
-	@objective(bundle.m, Min,
+	@NLobjective(bundle.m, Min,
 		  sum(θ[j] for j=1:bundle.N)
 		+ 0.5 * bundle.ext.u * sum((x[i] - bundle.ext.x0[i])^2 for i=1:bundle.n))
 
@@ -211,7 +211,7 @@ function purge_cuts(bundle::ProximalModel)
 		bundle.m = Model(solver=solver)
 		@variable(bundle.m, x[i=1:bundle.n])
 		@variable(bundle.m, θ[j=1:bundle.N])
-		@objective(bundle.m, Min,
+		@NLobjective(bundle.m, Min,
 			  sum(θ[j] for j=1:bundle.N)
 			+ 0.5 * bundle.ext.u * sum((x[i] - bundle.ext.x1[i])^2 for i=1:bundle.n))
 
@@ -271,7 +271,7 @@ end
 function update_objective!(bundle::ProximalModel)
 	x = getindex(bundle.m, :x)
 	θ = getindex(bundle.m, :θ)
-	@objective(bundle.m, Min,
+	@NLobjective(bundle.m, Min,
 		  sum(θ[j] for j=1:bundle.N)
 		+ 0.5 * bundle.ext.u * sum((x[i] - bundle.ext.x1[i])^2 for i=1:bundle.n))
 end
