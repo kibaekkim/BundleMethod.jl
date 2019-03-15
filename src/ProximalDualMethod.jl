@@ -61,7 +61,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		w = getindex(bundle.m, :w)
 		numw = length(w)
 		for i=1:numw
-			setvalue(w[i], 1.0)
+			setvalue(w[i], 0.0)
 		end
 	end
 	for j in 1:bundle.N
@@ -123,12 +123,12 @@ function solve_bundle_model(bundle::ProximalDualModel)
 			
 			# We can recover θ from the dual variable value.
 			# Don't forget the scaling.
+			@show getdual(cons)
 			θ = bundle.m.ext[:scaling_factor] * getdual(cons)
 			bundle.ext.v[j] = θ - bundle.ext.fx0[j]
 		end
 		bundle.ext.sum_of_v = sum(bundle.ext.v)
 	end
-	exit()
 
 	return status
 end
