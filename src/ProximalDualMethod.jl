@@ -78,13 +78,16 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		end
 	end
 
-	# print(bundle.m)
+	print(bundle.m)
 	# solve the bundle model
 	status = solve(bundle.m;solver="Ipopt", with_prof=false)
 	# status = solve(bundle.m)
 	# @show JuMP.getobjectivevalue(bundle.m)
-
+    @show status
 	if status == :Solve_Succeeded
+		status = :Optimal
+	end
+	if status == :Optimal
 
 		# get solutions
 		if bundle.splitvars
@@ -119,12 +122,10 @@ function solve_bundle_model(bundle::ProximalDualModel)
 			# variable/constraint references
 			cmodel = getchildren(bundle.m)[j]
 			cons = getindex(cmodel, :cons)
-			@show cons
 			
 			# We can recover θ from the dual variable value.
 			# Don't forget the scaling.
-			@show getdual(cons)
-			θ = bundle.m.ext[:scaling_factor] * getdual(cons)
+			θ = bundle.m.ext[:scaling_factor] * -getdual(cons)
 			bundle.ext.v[j] = θ - bundle.ext.fx0[j]
 		end
 		bundle.ext.sum_of_v = sum(bundle.ext.v)
