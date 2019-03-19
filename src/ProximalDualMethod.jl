@@ -13,7 +13,6 @@
 	for each scenario.
 	The objective function has both first- and second-stage variables.
 =#
-
 abstract type ProximalDualMethod <: ProximalMethod end
 
 const ProximalDualModel = Model{ProximalDualMethod}
@@ -31,7 +30,7 @@ function initialize!(bundle::ProximalDualModel)
 	@NLobjective(bundle.m, Min, 0)
 	for j = 1:bundle.N
 		if j ∈ getLocalChildrenIds(bundle.m)
-			cmodel = StructuredModel(parent=bundle.m,id=j)
+			cmodel = getchildren(bundle.m)[j]
 			@constraint(cmodel, cons, 0 == 1)
 		end
 	end
