@@ -61,6 +61,9 @@ mutable struct Model{T<:AbstractMethod}
 		bundle.history = Dict{Tuple{Int64,Int64},Bundle}()
 
 		# initialize bundle model
+		for j = 1:bundle.N
+			cmodel = StructuredModel(parent=bundle.m,id=j)
+		end
 		initialize!(bundle)
 
 		return bundle
