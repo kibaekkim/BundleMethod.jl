@@ -12,7 +12,7 @@ using JuMP, StructJuMP, StructJuMPSolverInterface
 
 abstract type AbstractMethod end
 
-struct Bundle
+mutable struct Bundle
 	ref	# constraint/variable reference
 	y	# evaluation point
 	fy	# evaluation value
@@ -41,6 +41,8 @@ mutable struct Model{T<:AbstractMethod}
 
 	# History of bundles
 	history::Dict{Tuple{Int64,Int64},Bundle}
+	
+	solver
 
 	# Placeholder for extended structures
 	ext
@@ -76,6 +78,7 @@ function run(bundle::Model{<:AbstractMethod})
 	bundle.k += 1
 
 	while true
+		build_model!(bundle)
 		status = solve_bundle_model(bundle)
 		if status != :Optimal
 			println("TERMINATION: Invalid status from bundle model.")
@@ -99,6 +102,9 @@ end
 const AbstractModel = Model{AbstractMethod}
 
 function initialize!(bundle::AbstractModel)
+end
+
+function build_model!(bundle::AbstractModel)
 end
 
 function add_initial_bundles!(bundle::AbstractModel)
