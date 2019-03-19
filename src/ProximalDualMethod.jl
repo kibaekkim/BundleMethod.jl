@@ -48,6 +48,35 @@ function add_initial_bundles!(bundle::ProximalDualModel)
 	update_objective!(bundle)
 end
 
+function build_model!(bundle::ProximalDualModel)
+	# print(bundle.m)
+	bundle.m = JuMP.Model()
+	if bundle.splitvars
+		numw = Int(bundle.n / bundle.N)
+		@variable(bundle.m, w[i=1:numw])
+	end
+	@NLobjective(bundle.m, Min, 0)
+	@constraint(bundle.m, cons[j=1:bundle.N], 0 == 1)
+	for j = 1:bundle.N
+		for i = 0:bundle.k-1
+			if haskey(bundle.history, (j,i))
+				cons = getindex(bundle.m, :cons)
+				var = @variable(bundle.m,
+					z >= 0,
+					objective = 0.0, # This will be updated later.
+					inconstraints = [cons[j]],
+					coefficients = [1.0],
+					basename = "z[$j,$i]")
+				
+				bundle.history[j,i].ref = var
+			end
+		end
+	end
+	# print(bundle.m)
+	update_objective!(bundle)
+	JuMP.setsolver(bundle.m, bundle.solver)
+end
+
 function solve_bundle_model(bundle::ProximalDualModel)
 	# Initialize variables
 	if bundle.splitvars
