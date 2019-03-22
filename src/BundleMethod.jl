@@ -8,7 +8,7 @@ module BundleMethod
 export ProximalMethod, ProximalDualMethod
 
 using Compat
-using JuMP, StructJuMP, StructJuMPSolverInterface
+using JuMP, StructJuMP, StructJuMPSolverInterface, MPI
 
 abstract type AbstractMethod end
 
@@ -92,6 +92,8 @@ function run(bundle::Model{<:AbstractMethod})
 		manage_bundles!(bundle)
 		update_iteration!(bundle)
 	end
+	# TODO This is not where it should be
+	MPI.Finalize()
 end
 
 #=

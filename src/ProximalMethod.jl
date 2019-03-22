@@ -129,6 +129,24 @@ end
 
 function evaluate_functions!(bundle::Model{<:ProximalMethod})
 	# evaluation function f
+	nprocs = MPI.Comm_size(MPI.COMM_WORLD)
+	numw = Int(bundle.n/bundle.N)
+	recv = zeros(bundle.n/nprocs)
+	k = 1
+	for i in 1:numw
+		for j in 1:bundle.N
+			jj = (j - 1) * numw + i
+			if j ∈ getLocalChildrenIds(bundle.m)
+				recv[k] = bundle.y[jj]
+				k += 1
+			end
+		end
+	end
+	# TODO: This case is necessary because Julia MPI messes the buffer up
+	# with one process
+	if nprocs > 1
+		bundle.y = MPI.Allgather(recv, MPI.COMM_WORLD)
+	end
 	bundle.fy, bundle.g = bundle.evaluate_f(bundle.y)
 
 	# descent test

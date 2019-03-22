@@ -57,31 +57,34 @@ end
 
 function build_model!(bundle::ProximalDualModel)
 	# print(bundle.m)
-	bundle.m = JuMP.Model()
+	bundle.m = StructuredModel(num_scenarios=bundle.N)
 	if bundle.splitvars
 		numw = Int(bundle.n / bundle.N)
 		@variable(bundle.m, w[i=1:numw])
 	end
 	@NLobjective(bundle.m, Min, 0)
-	@constraint(bundle.m, cons[j=1:bundle.N], 0 == 1)
 	for j = 1:bundle.N
-		for i = 0:bundle.k-1
-			if haskey(bundle.history, (j,i))
-				cons = getindex(bundle.m, :cons)
-				var = @variable(bundle.m,
-					z >= 0,
-					objective = 0.0, # This will be updated later.
-					inconstraints = [cons[j]],
-					coefficients = [1.0],
-					basename = "z[$j,$i]")
-				
-				bundle.history[j,i].ref = var
+		if j ∈ getLocalChildrenIds(bundle.m)
+			cmodel = StructuredModel(parent=bundle.m,id=j)
+			@constraint(cmodel, cons, 0 == 1)
+			for i = 0:bundle.k-1
+				if haskey(bundle.history, (j,i))
+					cons = getindex(cmodel, :cons)
+					var = @variable(cmodel,
+						z >= 0,
+						objective = 0.0, # This will be updated later.
+						inconstraints = [cons],
+						coefficients = [1.0],
+						basename = "z[$j,$i]")
+					
+					bundle.history[j,i].ref = var
+				end
 			end
 		end
 	end
-	# print(bundle.m)
 	update_objective!(bundle)
 	JuMP.setsolver(bundle.m, bundle.solver)
+	# print(bundle.m)
 end
 
 function solve_bundle_model(bundle::ProximalDualModel)
@@ -93,26 +96,31 @@ function solve_bundle_model(bundle::ProximalDualModel)
 			setvalue(w[i], 0.0)
 		end
 	end
+	
+	numz=zeros(bundle.N)
+	recv=zeros(bundle.N)
 	for j in 1:bundle.N
-		numz = 0
+		numz[j] = 0
 		for k in 0:bundle.k
 			if haskey(bundle.history, (j,k))
-				numz += 1
+				numz[j] += 1
 			end
 		end
+	end
+	MPI.Allreduce!(numz, recv, bundle.N, MPI.SUM, MPI.COMM_WORLD)
+	for j in 1:bundle.N
 		for k in 0:bundle.k
 			if haskey(bundle.history, (j,k))
-				setvalue(bundle.history[j,k].ref, 1.0/numz)
+				setvalue(bundle.history[j,k].ref, 1.0/recv[j])
 			end
 		end
 	end
 
-	print(bundle.m)
+	# print(bundle.m)
 	# solve the bundle model
-	status = solve(bundle.m;solver="Ipopt", with_prof=false)
+	status = solve(bundle.m;solver="PipsNlp", with_prof=false)
 	# status = solve(bundle.m)
 	# @show JuMP.getobjectivevalue(bundle.m)
-    @show status
 	if status == :Solve_Succeeded
 		status = :Optimal
 	end
@@ -123,12 +131,14 @@ function solve_bundle_model(bundle::ProximalDualModel)
 			for i in 1:numw
 				for j in 1:bundle.N
 					jj = (j - 1) * numw + i
-					bundle.y[jj] = bundle.ext.x0[jj] + (
+					if j ∈ getLocalChildrenIds(bundle.m)
+						bundle.y[jj] = bundle.ext.x0[jj] + (
 						getvalue(w[i])
 						- sum(getvalue(bundle.history[j,k].ref) * bundle.history[j,k].g[jj]
-							for k in 0:bundle.k if haskey(bundle.history,(j,k)))
-						) / bundle.ext.u
-					bundle.ext.d[jj] = bundle.y[jj] - bundle.ext.x0[jj]
+						for k in 0:bundle.k if haskey(bundle.history,(j,k)))
+							) / bundle.ext.u
+						bundle.ext.d[jj] = bundle.y[jj] - bundle.ext.x0[jj]
+					end
 				end
 			end
 		else
@@ -148,16 +158,19 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		@assert(isapprox(sum(bundle.y), 0.0, atol = 1.0e-10))
 
 		for j=1:bundle.N
-			# variable/constraint references
-			cmodel = getchildren(bundle.m)[j]
-			cons = getindex(cmodel, :cons)
-			
-			# We can recover θ from the dual variable value.
-			# Don't forget the scaling.
-			θ = bundle.m.ext[:scaling_factor] * -getdual(cons)
-			bundle.ext.v[j] = θ - bundle.ext.fx0[j]
+			if j ∈ getLocalChildrenIds(bundle.m)
+				# variable/constraint references
+				cmodel = getchildren(bundle.m)[j]
+				cons = getindex(cmodel, :cons)
+				
+				# We can recover θ from the dual variable value.
+				# Don't forget the scaling.
+				θ = bundle.m.ext[:scaling_factor] * -getdual(cons)
+				bundle.ext.v[j] = θ - bundle.ext.fx0[j]
+			end
 		end
 		bundle.ext.sum_of_v = sum(bundle.ext.v)
+		bundle.ext.sum_of_v = MPI.Allreduce(bundle.ext.sum_of_v, MPI.SUM, MPI.COMM_WORLD)
 	end
 
 	return status
@@ -166,10 +179,12 @@ end
 function manage_bundles!(bundle::ProximalDualModel)
 	# add variable
 	for j = 1:bundle.N
-		gd = bundle.g[j,:]' * bundle.ext.d
-		bundle.ext.α[j] = bundle.ext.fx0[j] - (bundle.fy[j] - gd)
-		if -bundle.ext.α[j] + gd > bundle.ext.v[j] + bundle.ext.ϵ_float
-			add_var(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
+		if j ∈ getLocalChildrenIds(bundle.m)
+			gd = bundle.g[j,:]' * bundle.ext.d
+			bundle.ext.α[j] = bundle.ext.fx0[j] - (bundle.fy[j] - gd)
+			if -bundle.ext.α[j] + gd > bundle.ext.v[j] + bundle.ext.ϵ_float
+				add_var(bundle, bundle.g[j,:], bundle.fy[j], bundle.y, j)
+			end
 		end
 	end
 end
@@ -192,6 +207,7 @@ function update_objective!(bundle::ProximalDualModel)
 	for h in values(bundle.history)
 		bundle.m.ext[:scaling_factor] += sqrt.(sum(h.g.^2))
 	end
+	bundle.m.ext[:scaling_factor] = MPI.Allreduce(bundle.m.ext[:scaling_factor], MPI.SUM, MPI.COMM_WORLD)
 
 	if bundle.splitvars
 		# variable references
