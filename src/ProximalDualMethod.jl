@@ -36,7 +36,7 @@ end
 function add_initial_bundles!(bundle::ProximalDualModel)
 	# initial point evaluation
 	bundle.fy, bundle.g = bundle.evaluate_f(bundle.y)
-	bundle.ext.fx0 = bundle.fy
+	bundle.ext.fx0 = copy(bundle.fy)
 
 	# add bundles
 	for j = 1:bundle.N
@@ -44,7 +44,7 @@ function add_initial_bundles!(bundle::ProximalDualModel)
 	end
 
 	# update objective function
-	bundle.ext.x1 = bundle.ext.x0
+	bundle.ext.x1 = copy(bundle.ext.x0)
 	update_objective!(bundle)
 end
 
@@ -140,8 +140,8 @@ function update_iteration!(bundle::ProximalDualModel)
 	update_objective!(bundle)
 
 	bundle.k += 1
-	bundle.ext.x0 = bundle.ext.x1
-	bundle.ext.fx0 = bundle.ext.fx1
+	bundle.ext.x0 = copy(bundle.ext.x1)
+	bundle.ext.fx0 = copy(bundle.ext.fx1)
 end
 
 function update_objective!(bundle::ProximalDualModel)
