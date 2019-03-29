@@ -129,6 +129,8 @@ function solve_bundle_model(bundle::ProximalDualModel)
 		# get solutions
 		if bundle.splitvars
 			nprocs = MPI.Comm_size(MPI.COMM_WORLD)
+			id = MPI.Comm_rank(MPI.COMM_WORLD)
+			npart = Int(bundle.n/nprocs)
 			recvy = zeros(bundle.n/nprocs)
 			k = 1
 			for i in 1:numw
@@ -141,7 +143,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 						for k in 0:bundle.k if haskey(bundle.history,(j,k)))
 							) / bundle.ext.u
 						bundle.ext.d[jj] = bundle.y[jj] - bundle.ext.x0[jj]
-						recvy[k] = bundle.y[jj]
+						recvy[jj-id*npart] = bundle.y[jj]
 						k += 1
 					end
 				end
