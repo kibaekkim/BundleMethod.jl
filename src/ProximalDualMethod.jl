@@ -41,7 +41,7 @@ end
 function add_initial_bundles!(bundle::ProximalDualModel)
 	# initial point evaluation
 	bundle.fy, bundle.g = bundle.evaluate_f(bundle.y)
-	bundle.ext.fx0 = bundle.fy
+	bundle.ext.fx0 = copy(bundle.fy)
 
 	# add bundles
 	for j = 1:bundle.N
@@ -51,7 +51,7 @@ function add_initial_bundles!(bundle::ProximalDualModel)
 	end
 
 	# update objective function
-	bundle.ext.x1 = bundle.ext.x0
+	bundle.ext.x1 = copy(bundle.ext.x0)
 	update_objective!(bundle)
 end
 
@@ -128,6 +128,9 @@ function solve_bundle_model(bundle::ProximalDualModel)
 
 		# get solutions
 		if bundle.splitvars
+			nprocs = MPI.Comm_size(MPI.COMM_WORLD)
+			recvy = zeros(bundle.n/nprocs)
+			k = 1
 			for i in 1:numw
 				for j in 1:bundle.N
 					jj = (j - 1) * numw + i
@@ -138,8 +141,15 @@ function solve_bundle_model(bundle::ProximalDualModel)
 						for k in 0:bundle.k if haskey(bundle.history,(j,k)))
 							) / bundle.ext.u
 						bundle.ext.d[jj] = bundle.y[jj] - bundle.ext.x0[jj]
+						recvy[k] = bundle.y[jj]
+						k += 1
 					end
 				end
+			end
+			# TODO: This case is necessary because Julia MPI messes the buffer up
+			# with one process
+			if nprocs > 1
+				bundle.y = MPI.Allgather(recvy, MPI.COMM_WORLD)
 			end
 		else
 			for i=1:bundle.n
@@ -197,8 +207,8 @@ function update_iteration!(bundle::ProximalDualModel)
 	update_objective!(bundle)
 
 	bundle.k += 1
-	bundle.ext.x0 = bundle.ext.x1
-	bundle.ext.fx0 = bundle.ext.fx1
+	bundle.ext.x0 = copy(bundle.ext.x1)
+	bundle.ext.fx0 = copy(bundle.ext.fx1)
 end
 
 function update_objective!(bundle::ProximalDualModel)
