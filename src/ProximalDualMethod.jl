@@ -243,7 +243,7 @@ function update_objective!(bundle::ProximalDualModel)
 		end
 	else
 		# update objective function
-		@objective(bundle.m, Min,
+		@NLobjective(bundle.m, Min,
 			-1. / bundle.m.ext[:scaling_factor] * sum(hist.ref
 				* (hist.fy + sum(hist.g[i] * (bundle.ext.x1[i] - hist.y[i]) for i=1:bundle.n))
 				for (key,hist) in bundle.history
@@ -255,7 +255,6 @@ function update_objective!(bundle::ProximalDualModel)
 				)
 		)
 	end
-	# print(bundle.m)
 end
 
 function add_var(bundle::ProximalDualModel, g::Array{Float64,1}, fy::Float64, y::Array{Float64,1}, j::Int64; store_vars = true)
