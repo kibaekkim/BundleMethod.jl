@@ -205,7 +205,7 @@ function solve_bundle_model(bundle::ProximalDualModel)
 					# 	- sum(getvalue(bundle.history[j,k].ref) * bundle.history[j,k].g[jj]
 					# 		for k in 0:bundle.k if haskey(bundle.history,(j,k)))
 					# 	) / bundle.ext.u
-					# bundle.ext.d[jj] = bundle.y[jj] - bundle.ext.x0[jj]
+					bundle.ext.d[jj] = bundle.y[jj] - bundle.ext.x0[jj]
 				end
 			end
 		else
