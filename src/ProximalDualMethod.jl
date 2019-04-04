@@ -13,6 +13,7 @@
 	for each scenario.
 	The objective function has both first- and second-stage variables.
 =#
+prof = true
 type ProximalModelExt
 	# Algorithm-specific parameters
 	u::Float64
@@ -77,6 +78,11 @@ type ProximalDualModel
 	# History of bundles
 	history::Dict{Tuple{Int64,Int64},Bundle}
 	
+	# timers
+	tevaluate_f::Float64
+	tsolve::Float64
+	ttotal::Float64
+	
 	solver
 
 	# Placeholder for extended structures
@@ -96,6 +102,9 @@ type ProximalDualModel
 		bundle.splitvars = splitvars
 		bundle.evaluate_f = func
 		bundle.history = Dict{Tuple{Int64,Int64},Bundle}()
+		bundle.tevaluate_f = 0
+		bundle.tsolve = 0
+		bundle.ttotal = 0
 
 		# initialize bundle model
                 for j = 1:bundle.N
@@ -112,18 +121,25 @@ function run(bundle::ProximalDualModel)
 	add_initial_bundles!(bundle)
 	bundle.k += 1
 
+	prof && tic()
 	while true
-                build_model!(bundle)
+		build_model!(bundle)
+		prof && tic()
 		status = solve_bundle_model(bundle)
+		prof && (bundle.tsolve += toq())
 		if status != :Optimal
 			println("TERMINATION: Invalid status from bundle model.")
 			break
 		end
+		prof && (bundle.ttotal += toq())
 		display_info!(bundle)
+		prof && tic()
 		if termination_test(bundle)
 			break
 		end
+		prof && tic()
 		evaluate_functions!(bundle)
+		prof && (bundle.tevaluate_f += toq())
 		manage_bundles!(bundle)
 		update_iteration!(bundle)
 	end
@@ -196,7 +212,7 @@ function build_model!(bundle::ProximalDualModel)
 		end
 	end
 	update_objective!(bundle)
-	JuMP.setsolver(bundle.m, bundle.solver)
+	# JuMP.setsolver(bundle.m, bundle.solver)
 	# print(bundle.m)
 end
 
@@ -420,8 +436,14 @@ function evaluate_functions!(bundle::ProximalDualModel)
 end
 
 function display_info!(bundle::ProximalDualModel)
-	@printf("Iter %d: ncols %d, nrows %d, fx0 %e, fx1 %e, fy %e, v %e, u %e, i %d\n",
+	id = MPI.Comm_rank(MPI.COMM_WORLD)
+	if id == 0
+		@printf("Iter %d: ncols %d, nrows %d, fx0 %e, fx1 %e, fy %e, v %e, u %e, i %d\n",
 		bundle.k, bundle.m.numCols, length(bundle.m.linconstr), sum(bundle.ext.fx0), sum(bundle.ext.fx1), sum(bundle.fy), bundle.ext.sum_of_v, bundle.ext.u, bundle.ext.i)
+		if prof
+			println("[Timings] evaluate f: ", bundle.tevaluate_f, " solve: ", bundle.tsolve, " total: ", bundle.ttotal)
+		end
+	end
 end
 
 function getsolution(bundle::ProximalDualModel)
