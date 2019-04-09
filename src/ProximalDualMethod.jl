@@ -107,7 +107,7 @@ type ProximalDualModel
 		bundle.ttotal = 0
 
 		# initialize bundle model
-                for j = 1:bundle.N
+		for j = 1:bundle.N
 			cmodel = StructuredModel(parent=bundle.m,id=j)
 		end
 		initialize!(bundle)
@@ -175,7 +175,8 @@ function add_initial_bundles!(bundle::ProximalDualModel)
 	# add bundles
 	for j = 1:bundle.N
 		if j ∈ getLocalChildrenIds(bundle.m)
-			add_var(bundle, vec(bundle.g[j,:]), bundle.fy[j], bundle.y, j)
+			gradidx = j - getLocalChildrenIds(bundle.m)[1] + 1
+			add_var(bundle, vec(bundle.g[gradidx,:]), bundle.fy[j], bundle.y, j)
 		end
 	end
 
@@ -332,10 +333,11 @@ function manage_bundles!(bundle::ProximalDualModel)
 	# add variable
 	for j = 1:bundle.N
 		if j ∈ getLocalChildrenIds(bundle.m)
-			gd = (vec(bundle.g[j,:])' * bundle.ext.d)[1]
+			gradidx = j - getLocalChildrenIds(bundle.m)[1] + 1
+			gd = (vec(bundle.g[gradidx,:])' * bundle.ext.d)[1]
 			bundle.ext.α[j] = bundle.ext.fx0[j] - (bundle.fy[j] - gd)
 			if -bundle.ext.α[j] + gd > bundle.ext.v[j] + bundle.ext.ϵ_float
-				add_var(bundle, vec(bundle.g[j,:]), bundle.fy[j], bundle.y, j)
+				add_var(bundle, vec(bundle.g[gradidx,:]), bundle.fy[j], bundle.y, j)
 			end
 		end
 	end
