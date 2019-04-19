@@ -144,7 +144,7 @@ function run(bundle::ProximalDualModel)
 		update_iteration!(bundle)
 	end
 	# TODO This is not where it should be
-	MPI.Finalize()
+	# MPI.Finalize()
 end
 
 function initialize!(bundle::ProximalDualModel)
