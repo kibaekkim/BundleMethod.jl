@@ -83,7 +83,7 @@ end
 function add_initial_bundles!(bundle::ProximalModel)
 	# initial point evaluation
 	bundle.fy, bundle.g = bundle.evaluate_f(bundle.y)
-	bundle.ext.fx0 = bundle.fy
+	bundle.ext.fx0 = copy(bundle.fy)
 
 	# add bundles
 	for j = 1:bundle.N
@@ -160,8 +160,8 @@ function update_iteration!(bundle::ProximalModel)
 	end
 
 	bundle.k += 1
-	bundle.ext.x0 = bundle.ext.x1
-	bundle.ext.fx0 = bundle.ext.fx1
+	bundle.ext.x0 = copy(bundle.ext.x1)
+	bundle.ext.fx0 = copy(bundle.ext.fx1)
 end
 
 getsolution(bundle::Model{<:ProximalMethod})::Array{Float64,1} = bundle.ext.x0
@@ -169,11 +169,11 @@ getobjectivevalue(bundle::Model{<:ProximalMethod})::Float64 = sum(bundle.ext.fx0
 
 function descent_test(bundle::Model{<:ProximalMethod})
 	if sum(bundle.fy) <= sum(bundle.ext.fx0) + bundle.ext.m_L * bundle.ext.sum_of_v
-		bundle.ext.x1 = bundle.y
-		bundle.ext.fx1 = bundle.fy
+		bundle.ext.x1 = copy(bundle.y)
+		bundle.ext.fx1 = copy(bundle.fy)
 	else
-		bundle.ext.x1 = bundle.ext.x0
-		bundle.ext.fx1 = bundle.ext.fx0
+		bundle.ext.x1 = copy(bundle.ext.x0)
+		bundle.ext.fx1 = copy(bundle.ext.fx0)
 	end
 end
 
