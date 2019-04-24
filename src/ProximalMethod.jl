@@ -116,7 +116,7 @@ function solve_bundle_model(bundle::ProximalModel)
 end
 
 function termination_test(bundle::Model{<:ProximalMethod})
-	if bundle.ext.sum_of_v >= -bundle.ext.ϵ_s
+	if bundle.ext.sum_of_v >= -bundle.ext.ϵ_s * (1 + abs(sum(bundle.ext.fx0)))
 		println("TERMINATION: Optimal: v = ", bundle.ext.sum_of_v)
 		return true
 	end
