@@ -42,6 +42,8 @@ mutable struct Model{T<:AbstractMethod}
 	# History of bundles
 	history::Dict{Tuple{Int64,Int64},Bundle}
 
+	solver
+
 	# Placeholder for extended structures
 	ext
 
