@@ -18,6 +18,8 @@ mutable struct ProximalMethod <: AbstractMethod
 	fy::Array{Float64,1} # objective values at y for N functions
 	g::Array{Float64,2}  # subgradients of dimension n for N functions
 
+	dual::Dict{JuMP.ConstraintRef,Float64} # dual variable values to bundle constraints
+
 	iter::Int # iteration counter
 	maxiter::Int # iteration limit
 
@@ -51,6 +53,8 @@ mutable struct ProximalMethod <: AbstractMethod
 		pm.y = zeros(n)
 		pm.fy = zeros(N)
 		pm.g = zeros(N,n)
+
+		pm.dual = Dict()
 		
 		pm.iter = 0
 		pm.maxiter = 3000
@@ -115,6 +119,10 @@ function collect_model_solution!(method::ProximalMethod)
 			method.v[j] = JuMP.value(θ[j]) - method.fx0[j]
 		end
 		method.sum_of_v = sum(method.v)
+		for (i, ref) in enumerate(method.cut_pool)
+			@assert JuMP.is_valid(get_jump_model(method), ref)
+			method.dual[ref] = JuMP.dual(ref)
+		end
 	else
 		@error "Unexpected model solution status ($(JuMP.termination_status(model)))"
 	end
@@ -155,16 +163,20 @@ function update_bundles!(method::ProximalMethod)
 end
 
 function purge_bundles!(method::ProximalMethod)
-	model = get_model(method.model)
+	model = get_jump_model(method)
 	ncuts = length(method.cut_pool)
 	ncuts_to_purge = ncuts - method.M_g
 	refs_removed = Int[]
 	if ncuts_to_purge > 0
 		for (i, ref) in enumerate(method.cut_pool)
 			@assert JuMP.is_valid(model, ref)
-			if JuMP.dual(ref) < -1e-8
+			if method.dual[ref] < -1e-8
 				JuMP.delete(model, ref)
 				push!(refs_removed, i)
+				ncuts_to_purge -= 1
+			end
+			if ncuts_to_purge == 0
+				break
 			end
 		end
 	end
