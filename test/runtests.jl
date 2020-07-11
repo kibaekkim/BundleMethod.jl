@@ -31,9 +31,12 @@ const BM = BundleMethod
     @test JuMP.num_variables(model) == 2
     @test BM.termination_test(bm) == true
 
+    BM.add_constraints!(bm)
     BM.collect_model_solution!(bm)
     BM.evaluate_functions!(bm)
     BM.update_bundles!(bm)
+    BM.purge_bundles!(bm)
+    BM.add_bundles!(bm)
     BM.update_iteration!(bm)
     BM.display_info!(bm)
 end
