@@ -1,61 +1,59 @@
-using Compat
-using JuMP, CPLEX
 using BundleMethod
+using JuMP
+using Ipopt
+using Random
 
-# User-defined function
+#=
+This example considers:
+	minimize \sum_{i=1}^N \sum_{j=1}^n b_i * (x_j - a_ij)^2
+	subject to -1 <= x_j <= 1
+where objective function is separable such that
+	f_i(x) := \sum_{j=1}^n b_i * (x_j - a_ij)^2
+=#
+
+# Randomly generate problem data
+Random.seed!(1)
+n = 3
+N = 2
+a = rand(N, n)
+b = rand(N)
+
+#=
+User-defined function:
+
+This function takes a new trial point `y` of dimension `n`
+  and returns the array of separable objective function values
+  and gradient of the functions.
+=#
 function evaluate_f(y)
-	k,n = size(a)
-	fvals = zeros(k)
-	subgrads = zeros(k,n)
-	for i=1:k
-		for j=1:n
-			fvals[i] += b[i] * (y[j] - a[i,j])^2
-			subgrads[i,j] += 2 * b[i] * (y[j] - a[i,j])
-		end
+	N, n = size(a)
+	fvals = zeros(N)
+	grads = zeros(N, n)
+	for i = 1:N, j = 1:n
+		fvals[i] += b[i] * (y[j] - a[i,j])^2
+		grads[i,j] += 2 * b[i] * (y[j] - a[i,j])
 	end
-	return -fvals, -subgrads
+	return fvals, grads
 end
 
-function test()
-	#=
-	min_x \sum_{i=1}^10 b_i \sum_{j=1}^5 (x_j - a_{ij})^2
-	=#
+# This initializes the proximal bundle method with required arguments.
+pm = BM.ProximalMethod(n, N, evaluate_f)
 
-	Compat.Random.seed!(1)
-	global n = 3
-	global k = 2
-	global a = rand(k, n)
-	global b = -rand(k)
-	@show a
-	@show b
+# Set optimization solver to the internal JuMP.Model
+model = BM.get_jump_model(pm)
+set_optimizer(model, Ipopt.Optimizer)
+set_optimizer_attribute(model, "print_level", 0)
 
-	vm = Model(solver=CplexSolver(CPX_PARAM_SCRIND=0))
-	@variable(vm, -1 <= vm_x[j=1:n] <= 1)
-	@objective(vm, Max, sum(b[i] * (vm_x[j] - a[i,j])^2 for i=1:k for j=1:n))
-	solve(vm)
-	@show getobjectivevalue(vm)
-	@show getvalue(vm_x)
-
-	# initialize bundle method
-	bundle = BundleMethod.Model{BundleMethod.ProximalMethod}(n, k, evaluate_f)
-
-	# set bounds
-	x = getindex(bundle.m, :x)
-	for i=1:bundle.n
-		setlowerbound(x[i], -1.0)
-		setupperbound(x[i], +1.0)
-	end
-
-	# set the underlying solver
-	setsolver(bundle.m, CplexSolver(CPX_PARAM_SCRIND=0))
-	print(bundle.m)
-
-	# solve!
-	BundleMethod.run(bundle)
-
-	# print solution
-	@show BundleMethod.getobjectivevalue(bundle)
-	@show BundleMethod.getsolution(bundle)
+# We overwrite the function to have column bounds.
+function BM.add_variables!(method::BM.ProximalMethod)
+	bundle = BM.get_model(method)
+	model = BM.get_model(bundle)
+	@variable(model, -1 <= x[i=1:bundle.n] <= 1)
+	@variable(model, θ[j=1:bundle.N])
 end
 
-test()
+# This builds the bundle model.
+BM.build_bundle_model!(pm)
+
+# This runs the bundle method.
+BM.run!(pm)
