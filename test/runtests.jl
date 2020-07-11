@@ -7,9 +7,35 @@ using Random
 const BM = BundleMethod
 
 @testset "Abstract Method" begin
-    bundle = BM.BundleModel(1, 1, nothing)
-    @test bundle.n == 1
-    @test bundle.N == 1
+
+    mutable struct BaseMethod <: BM.AbstractMethod
+        model::BM.BundleModel
+        function BaseMethod()
+            return new(BM.BundleModel(1,1,nothing))
+        end
+    end
+
+    bm = BaseMethod()
+    empty_model = BM.get_model(bm)
+    @test empty_model.n == 0
+    @test empty_model.N == 0
+
+    BM.get_model(method::BaseMethod) = method.model
+
+    BM.set_optimizer(bm, Ipopt.Optimizer)
+    BM.get_solution(bm)
+    @test BM.get_objective_value(bm) == Inf
+
+    BM.build_bundle_model!(bm)
+    model = BM.get_jump_model(bm)
+    @test JuMP.num_variables(model) == 2
+    @test BM.termination_test(bm) == true
+
+    BM.collect_model_solution!(bm)
+    BM.evaluate_functions!(bm)
+    BM.update_bundles!(bm)
+    BM.update_iteration!(bm)
+    BM.display_info!(bm)
 end
 
 @testset "Proximal Method" begin
@@ -28,9 +54,20 @@ end
 
     @show BM.getobjectivevalue(pm)
     @show BM.getsolution(pm)
-
     @test isapprox(objval, BM.getobjectivevalue(pm), rtol=1e-2)
     for j in 1:n
         @test isapprox(xval[j], BM.getsolution(pm)[j], rtol=1e-2)
     end
+
+    pm2 = BM.ProximalMethod(n, N, evaluate_f)
+    pm2.M_g = 3
+    pm2.maxiter = 3
+
+    # Set optimization solver to the internal JuMP.Model
+    model2 = BM.get_jump_model(pm2)
+    set_optimizer(model2, Ipopt.Optimizer)
+    set_optimizer_attribute(model2, "print_level", 0)
+
+    BM.build_bundle_model!(pm2)
+    BM.run!(pm2)
 end
