@@ -39,6 +39,8 @@ end
 
 get_model(model::BundleModel)::JuMP.Model = model.model
 
+set_optimizer(model::BundleModel, optimizer) = JuMP.set_optimizer(get_model(model), optimizer)
+
 function solve_model!(model::BundleModel)
 	model = get_model(model)
 	@assert !isnothing(model.moi_backend.optimizer)

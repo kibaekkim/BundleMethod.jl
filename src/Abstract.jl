@@ -7,6 +7,8 @@ abstract type AbstractMethod end
 # This returns BundleModel object.
 get_model(method::AbstractMethod)::BundleModel = BundleModel()
 
+set_optimizer(method::AbstractMethod, optimizer) = set_optimizer(get_model(method), optimizer)
+
 # This returns solution.
 function get_solution(method::AbstractMethod) end
 
@@ -40,11 +42,11 @@ end
 function add_constraints!(method::AbstractMethod) end
 
 # This implements the algorithmic steps.
-function run(method::AbstractMethod)
+function run!(method::AbstractMethod)
 	add_initial_bundles!(method)
 	solve_bundle_model!(method)
 	display_info!(method)
-	while termination_test(method)
+	while !termination_test(method)
 		evaluate_functions!(method)
 		update_bundles!(method)
 		update_iteration!(method)

@@ -42,15 +42,19 @@ mutable struct ProximalMethod <: AbstractMethod
 	α::Array{Float64,1}
 
 	cut_pool::Vector{JuMP.ConstraintRef}
-	
 	statistics::Dict{Any,Any} # arbitrary collection of statistics
 
 	function ProximalMethod(n::Int, N::Int, func)
 		pm = new()
 		pm.model = BundleModel(n, N, func)
+		
 		pm.y = zeros(n)
 		pm.fy = zeros(N)
 		pm.g = zeros(N,n)
+		
+		pm.iter = 0
+		pm.maxiter = 3000
+		
 		pm.u = 0.1
 		pm.u_min = 1.0e-2
 		pm.M_g = 1e+6
@@ -59,6 +63,7 @@ mutable struct ProximalMethod <: AbstractMethod
 		pm.ϵ_v = Inf
 		pm.m_L = 1.0e-4
 		pm.m_R = 0.5
+		
 		pm.x0 = zeros(n)
 		pm.x1 = zeros(n)
 		pm.fx0 = zeros(N)
@@ -68,8 +73,10 @@ mutable struct ProximalMethod <: AbstractMethod
 		pm.sum_of_v = 0.0
 		pm.i = 0
 		pm.α = zeros(N)
+		
 		pm.cut_pool = []
 		pm.statistics = Dict()
+		
 		return pm
 	end
 end
@@ -97,7 +104,7 @@ end
 function collect_model_solution!(method::ProximalMethod)
 	bundle = get_model(method)
 	model = get_model(bundle)
-	if JuMP.termination_status(model) == MOI.OPTIMAL
+	if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
 		x = model[:x]
 		θ = model[:θ]
 		for i=1:bundle.n
@@ -108,11 +115,18 @@ function collect_model_solution!(method::ProximalMethod)
 			method.v[j] = JuMP.value(θ[j]) - method.fx0[j]
 		end
 		method.sum_of_v = sum(method.v)
+	else
+		@error "Unexpected model solution status ($(JuMP.termination_status(model)))"
 	end
 end
 
 # Should the method terminate?
 function termination_test(method::ProximalMethod)
+	bundle = get_model(method)
+	model = get_model(bundle)
+	if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
+		return true
+	end
 	if method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
 		println("TERMINATION: Optimal: v = ", method.sum_of_v)
 		return true
@@ -212,7 +226,7 @@ function display_info!(method::ProximalMethod)
 		nrows += num_constraints(model, AffExpr, tp)
 	end
 	@printf("Iter %d: ncols %d, nrows %d, fx0 %e, fx1 %e, fy %e, v %e, u %e, i %d\n",
-		method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fx1), sum(bundle.fy), method.sum_of_v, method.u, method.i)
+		method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fx1), sum(method.fy), method.sum_of_v, method.u, method.i)
 end
 
 """
@@ -222,8 +236,9 @@ The following functions are specific for this method only.
 function add_bundle_constraint!(
 		method::ProximalMethod, y::Array{Float64,1}, fy::Float64, g::Array{Float64,1}, θ::JuMP.VariableRef)
 	bundle = get_model(method)
-	x = bundle.model[:x]
-	ref = @constraint(bundle.m, fy + sum(g[i] * (x[i] - y[i]) for i=1:bundle.n) <= θ)
+	model = get_model(bundle)
+	x = model[:x]
+	ref = @constraint(model, fy + sum(g[i] * (x[i] - y[i]) for i=1:bundle.n) <= θ)
 	push!(method.cut_pool, ref)
 	# method.statistics["y"][method.iter] = y
 	# method.statistics["fy"][method.iter] = fy
@@ -270,6 +285,8 @@ function update_weight(method::ProximalMethod)::Bool
 		method.ϵ_v = min(method.ϵ_v, p + α_tilde)
 		if sum(method.α) > max(method.ϵ_v, -10*method.sum_of_v) && method.i < -3
 			u = 2 * method.u * (1 - (fysum - fx0sum) / method.sum_of_v)
+		elseif method.i < 5
+			u = method.u * 1.2
 		end
 		newu = min(u, 10*method.u)
 		method.i = min(method.i-1,-1)
