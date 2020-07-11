@@ -27,16 +27,16 @@ end
 
 # This creates variables to the bundle model.
 function add_variables!(method::AbstractMethod)
-    bundle = get_model(method)
-    model = get_model(bundle)
+	bundle = get_model(method)
+	model = get_model(bundle)
 	@variable(model, x[i=1:bundle.n])
 	@variable(model, θ[j=1:bundle.N])
 end
 
 # This creates an objective function to the bundle model.
 function add_objective_function!(method::AbstractMethod)
-    bundle = get_model(method)
-    model = get_model(bundle)
+	bundle = get_model(method)
+	model = get_model(bundle)
 	θ = model[:θ]
 	@objective(model, Min, sum(θ[j] for j=1:bundle.N))
 end
