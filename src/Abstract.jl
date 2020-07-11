@@ -7,6 +7,9 @@ abstract type AbstractMethod end
 # This returns BundleModel object.
 get_model(method::AbstractMethod)::BundleModel = BundleModel()
 
+# This returns the internal JuMP.Model in BundleModel.
+get_jump_model(method::AbstractMethod)::JuMP.Model = get_model(get_model(method))
+
 set_optimizer(method::AbstractMethod, optimizer) = set_optimizer(get_model(method), optimizer)
 
 # This returns solution.
