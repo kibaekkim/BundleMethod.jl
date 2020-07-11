@@ -122,8 +122,7 @@ end
 
 # Should the method terminate?
 function termination_test(method::ProximalMethod)
-	bundle = get_model(method)
-	model = get_model(bundle)
+	model = get_jump_model(method)
 	if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
 		return true
 	end
@@ -219,8 +218,7 @@ end
 
 # This displays iteration information.
 function display_info!(method::ProximalMethod)
-	bundle = get_model(method)
-	model = get_model(bundle)
+	model = get_jump_model(method)
 	nrows = 0
 	for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
 		nrows += num_constraints(model, AffExpr, tp)
