@@ -4,45 +4,47 @@ using Ipopt
 using Random
 
 #=
-minimize \sum_{i=1}^k \sum_{j=1}^n b_i * (x_j - a_ij)^2
-subject to -1 <= x_j <= 1
+This example considers:
+	minimize \sum_{i=1}^N \sum_{j=1}^n b_i * (x_j - a_ij)^2
+	subject to -1 <= x_j <= 1
+where objective function is separable such that
+	f_i(x) := \sum_{j=1}^n b_i * (x_j - a_ij)^2
 =#
 
+# Randomly generate problem data
 Random.seed!(1)
 n = 3
 N = 2
 a = rand(N, n)
 b = rand(N)
 
-vm = JuMP.Model(Ipopt.Optimizer)
-@variable(vm, -1 <= vm_x[j=1:n] <= 1)
-@objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i=1:N, j=1:n))
-optimize!(vm)
-objval = JuMP.objective_value(vm)
-xval = Dict{Int,Float64}()
-for j in 1:n
-	xval[j] = JuMP.value(vm_x[j])
-end
+#=
+User-defined function:
 
-# User-defined function
+This function takes a new trial point `y` of dimension `n`
+  and returns the array of separable objective function values
+  and gradient of the functions.
+=#
 function evaluate_f(y)
 	N, n = size(a)
 	fvals = zeros(N)
-	subgrads = zeros(N, n)
+	grads = zeros(N, n)
 	for i = 1:N, j = 1:n
 		fvals[i] += b[i] * (y[j] - a[i,j])^2
-		subgrads[i,j] += 2 * b[i] * (y[j] - a[i,j])
+		grads[i,j] += 2 * b[i] * (y[j] - a[i,j])
 	end
-	return fvals, subgrads
+	return fvals, grads
 end
 
+# This initializes the proximal bundle method with required arguments.
 pm = BM.ProximalMethod(n, N, evaluate_f)
 
-model = BM.get_model(pm.model)
+# Set optimization solver to the internal JuMP.Model
+model = BM.get_jump_model(pm)
 set_optimizer(model, Ipopt.Optimizer)
 set_optimizer_attribute(model, "print_level", 0)
 
-# This creates variables to the bundle model.
+# We overwrite the function to have column bounds.
 function BM.add_variables!(method::BM.ProximalMethod)
 	bundle = BM.get_model(method)
 	model = BM.get_model(bundle)
@@ -50,5 +52,8 @@ function BM.add_variables!(method::BM.ProximalMethod)
 	@variable(model, θ[j=1:bundle.N])
 end
 
+# This builds the bundle model.
 BM.build_bundle_model!(pm)
+
+# This runs the bundle method.
 BM.run!(pm)

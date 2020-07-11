@@ -15,7 +15,17 @@ end
 @testset "Proximal Method" begin
 
     include("../examples/simple.jl")
-    
+
+    vm = JuMP.Model(Ipopt.Optimizer)
+    @variable(vm, -1 <= vm_x[j=1:n] <= 1)
+    @objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i=1:N, j=1:n))
+    optimize!(vm)
+    objval = JuMP.objective_value(vm)
+    xval = Dict{Int,Float64}()
+    for j in 1:n
+        xval[j] = JuMP.value(vm_x[j])
+    end
+
     @show BM.getobjectivevalue(pm)
     @show BM.getsolution(pm)
 
