@@ -12,5 +12,9 @@ Using the template, this pacakge implements
 ] add https://github.com/kibaekkim/BundleMethod.jl
 ```
 
+## Examples
+
+Please see examples in `./examples`.
+
 ## Acknowledgements
 This material is based upon work supported by the U.S. Department of Energy, Office of Science, under contract number DE-AC02-06CH11357.
