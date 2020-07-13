@@ -7,6 +7,7 @@ The implementation is based on
 """
 
 using LinearAlgebra
+using SparseArrays
 using Printf
 
 const disable_purge_cuts = true
@@ -16,7 +17,7 @@ mutable struct ProximalMethod <: AbstractMethod
 
 	y::Array{Float64,1}  # current iterate of dimension n
 	fy::Array{Float64,1} # objective values at y for N functions
-	g::Dict{Int,Vector{Float64}} # subgradients of dimension n for N functions
+	g::Dict{Int,SparseVector{Float64}} # subgradients of dimension n for N functions
 
 	dual::Dict{JuMP.ConstraintRef,Float64} # dual variable values to bundle constraints
 
@@ -244,7 +245,7 @@ The following functions are specific for this method only.
 """
 
 function add_bundle_constraint!(
-		method::ProximalMethod, y::Array{Float64,1}, fy::Float64, g::Array{Float64,1}, θ::JuMP.VariableRef)
+		method::ProximalMethod, y::Array{Float64,1}, fy::Float64, g::SparseVector{Float64}, θ::JuMP.VariableRef)
 	bundle = get_model(method)
 	model = get_model(bundle)
 	x = model[:x]

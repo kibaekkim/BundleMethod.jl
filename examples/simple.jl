@@ -1,4 +1,5 @@
 using BundleMethod
+using SparseArrays
 using JuMP
 using Ipopt
 using Random
@@ -28,7 +29,7 @@ This function takes a new trial point `y` of dimension `n`
 function evaluate_f(y)
 	N, n = size(a)
 	fvals = zeros(N)
-	grads = Dict{Int,Vector{Float64}}()
+	grads = Dict{Int,SparseVector}()
 	for i = 1:N
 		grad = zeros(n)
 		for j = 1:n
