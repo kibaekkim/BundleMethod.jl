@@ -16,7 +16,7 @@ mutable struct ProximalMethod <: AbstractMethod
 
 	y::Array{Float64,1}  # current iterate of dimension n
 	fy::Array{Float64,1} # objective values at y for N functions
-	g::Array{Float64,2}  # subgradients of dimension n for N functions
+	g::Dict{Int,Vector{Float64}} # subgradients of dimension n for N functions
 
 	dual::Dict{JuMP.ConstraintRef,Float64} # dual variable values to bundle constraints
 
@@ -52,7 +52,7 @@ mutable struct ProximalMethod <: AbstractMethod
 		
 		pm.y = zeros(n)
 		pm.fy = zeros(N)
-		pm.g = zeros(N,n)
+		pm.g = Dict()
 
 		pm.dual = Dict()
 		
@@ -201,13 +201,13 @@ function add_bundles!(method::ProximalMethod)
 		θ = bundle.model[:θ]
 
 		if method.iter == 0
-			add_bundle_constraint!(method, y, fy[j], g[j,:], θ[j])
+			add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
 		else
-			gd = g[j,:]' * method.d
+			gd = g[j]' * method.d
 			method.α[j] = method.fx0[j] - (fy[j] - gd)
 
 			if -method.α[j] + gd > method.v[j] + method.ϵ_float
-				add_bundle_constraint!(method, y, fy[j], g[j,:], θ[j])
+				add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
 			end
 		end
 	end
