@@ -74,3 +74,24 @@ end
     BM.build_bundle_model!(pm2)
     BM.run!(pm2)
 end
+
+@testset "Trust Region Method" begin
+
+    include("../examples/tr_simple.jl")
+    vm = JuMP.Model(Ipopt.Optimizer)
+    @variable(vm, -1 <= vm_x[j=1:n] <= 1)
+    @objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i=1:N, j=1:n))
+    optimize!(vm)
+    objval = JuMP.objective_value(vm)
+    xval = Dict{Int,Float64}()
+    for j in 1:n
+        xval[j] = JuMP.value(vm_x[j])
+    end
+
+    @show BM.get_objective_value(pm)
+    @show BM.get_solution(pm)
+    @test isapprox(objval, BM.get_objective_value(pm), rtol=1e-2)
+    for j in 1:n
+        @test isapprox(xval[j], BM.get_solution(pm)[j], rtol=1e-2)
+    end
+end
