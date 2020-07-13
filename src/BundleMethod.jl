@@ -50,5 +50,6 @@ end
 include("Abstract.jl")
 include("Proximal.jl")
 # include("ProximalDualMethod.jl")
+include("TrustRegion.jl")
 
 end

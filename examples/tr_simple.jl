@@ -38,8 +38,8 @@ function evaluate_f(y)
 	return fvals, grads
 end
 
-# This initializes the proximal bundle method with required arguments.
-pm = BM.ProximalMethod(n, N, evaluate_f)
+# This initializes the trust region bundle method with required arguments.
+pm = BM.TrustRegionMethod(n, N, evaluate_f)
 
 # Set optimization solver to the internal JuMP.Model
 model = BM.get_jump_model(pm)
