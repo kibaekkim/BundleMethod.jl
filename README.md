@@ -7,11 +7,12 @@ The template is generic and does not assume any particular structure.
 Using the template, this pacakge implements 
 
 - a proximal bundle method with linear constraints
+- a trust region method with linear constraints
 
 ## Installation
 
 ```
-] add https://github.com/kibaekkim/BundleMethod.jl
+] add BundleMethod
 ```
 
 ## Examples
