@@ -30,10 +30,14 @@ This function takes a new trial point `y` of dimension `n`
 function evaluate_f(y)
 	N, n = size(a)
 	fvals = zeros(N)
-	grads = zeros(N, n)
-	for i = 1:N, j = 1:n
-		fvals[i] += b[i] * (y[j] - a[i,j])^2
-		grads[i,j] += 2 * b[i] * (y[j] - a[i,j])
+	grads = Dict{Int,SparseVector{Float64}}()
+	for i = 1:N
+		grad = zeros(n)
+		for j = 1:n
+			fvals[i] += b[i] * (y[j] - a[i,j])^2
+			grad[j] += 2 * b[i] * (y[j] - a[i,j])
+		end
+		grads[i] = grad
 	end
 	return fvals, grads
 end

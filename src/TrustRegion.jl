@@ -14,7 +14,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
     y::Array{Float64,1}  # current iterate of dimension n
     fy::Array{Float64,1} # objective values at y for N functions
     θ::Array{Float64,1}  # θ value of trust region master problem
-	g::Array{Float64,2}  # subgradients of dimension n for N functions
+	g::Dict{Int,SparseVector{Float64}}  # subgradients of dimension n for N functions
 
 	iter::Int # iteration counter
 	maxiter::Int # iteration limit
@@ -90,7 +90,7 @@ function add_constraints!(method::TrustRegionMethod)
 end
 
 function add_bundle_constraint!(
-    method::TrustRegionMethod, y::Array{Float64,1}, fy::Float64, g::Array{Float64,1}, θ::JuMP.VariableRef)
+    method::TrustRegionMethod, y::Array{Float64,1}, fy::Float64, g::SparseVector{Float64}, θ::JuMP.VariableRef)
     bundle = get_model(method)
     model = get_model(bundle)
     x = model[:x]
@@ -106,7 +106,7 @@ function add_bundles!(method::TrustRegionMethod)
     bundle = get_model(method)
     θ = bundle.model[:θ]
 	for j = 1:bundle.N
-		add_bundle_constraint!(method, y, fy[j], g[j,:], θ[j])
+		add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
 	end
 end
 
