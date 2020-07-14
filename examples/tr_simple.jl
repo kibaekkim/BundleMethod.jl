@@ -1,5 +1,4 @@
 using BundleMethod
-using SparseArrays
 using JuMP
 using Ipopt
 using Random
@@ -31,20 +30,16 @@ This function takes a new trial point `y` of dimension `n`
 function evaluate_f(y)
 	N, n = size(a)
 	fvals = zeros(N)
-	grads = Dict{Int,SparseVector}()
-	for i = 1:N
-		grad = zeros(n)
-		for j = 1:n
-			fvals[i] += b[i] * (y[j] - a[i,j])^2
-			grad[j] += 2 * b[i] * (y[j] - a[i,j])
-		end
-		grads[i] = grad
+	grads = zeros(N, n)
+	for i = 1:N, j = 1:n
+		fvals[i] += b[i] * (y[j] - a[i,j])^2
+		grads[i,j] += 2 * b[i] * (y[j] - a[i,j])
 	end
 	return fvals, grads
 end
 
-# This initializes the proximal bundle method with required arguments.
-pm = BM.ProximalMethod(n, N, evaluate_f)
+# This initializes the trust region bundle method with required arguments.
+pm = BM.TrustRegionMethod(n, N, evaluate_f)
 
 # Set optimization solver to the internal JuMP.Model
 model = BM.get_jump_model(pm)
