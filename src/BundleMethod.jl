@@ -26,6 +26,8 @@ mutable struct BundleModel
 	# and return the value and its subgradients
 	evaluate_f
 
+	user_data
+
 	function BundleModel(n::Int = 0, N::Int = 0, func = nothing)
 		bundle = new()
 		bundle.n = n
@@ -33,6 +35,7 @@ mutable struct BundleModel
 		bundle.model = JuMP.Model()
 		# bundle.splitvars = splitvars
 		bundle.evaluate_f = func
+		bundle.user_data = nothing
 		return bundle
 	end
 end
@@ -40,6 +43,10 @@ end
 get_model(model::BundleModel)::JuMP.Model = model.model
 
 set_optimizer(model::BundleModel, optimizer) = JuMP.set_optimizer(get_model(model), optimizer)
+
+function set_user_data(model::BundleModel, user_data)
+	model.user_data = user_data
+end
 
 function solve_model!(model::BundleModel)
 	model = get_model(model)
