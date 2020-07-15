@@ -55,11 +55,11 @@ end
         xval[j] = JuMP.value(vm_x[j])
     end
 
-    @show BM.getobjectivevalue(pm)
-    @show BM.getsolution(pm)
-    @test isapprox(objval, BM.getobjectivevalue(pm), rtol=1e-2)
+    @show BM.get_objective_value(pm)
+    @show BM.get_solution(pm)
+    @test isapprox(objval, BM.get_objective_value(pm), rtol=1e-2)
     for j in 1:n
-        @test isapprox(xval[j], BM.getsolution(pm)[j], rtol=1e-2)
+        @test isapprox(xval[j], BM.get_solution(pm)[j], rtol=1e-2)
     end
 
     pm2 = BM.ProximalMethod(n, N, evaluate_f)
