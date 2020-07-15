@@ -90,10 +90,10 @@ end
 get_model(method::ProximalMethod)::BundleModel = method.model
 
 # This returns solution.
-getsolution(method::ProximalMethod) = method.x0
+get_solution(method::ProximalMethod) = method.x0
 
 # This returns objective value.
-getobjectivevalue(method::ProximalMethod) = sum(method.fx0)
+get_objective_value(method::ProximalMethod) = sum(method.fx0)
 
 # This creates an objective function to the bundle model.
 function add_objective_function!(method::ProximalMethod)
