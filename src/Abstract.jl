@@ -18,6 +18,9 @@ function get_solution(method::AbstractMethod) end
 # This returns objective value.
 get_objective_value(method::AbstractMethod)::Float64 = Inf
 
+# This sets the termination tolerance.
+function set_bundle_tolerance!(method::AbstractMethod, tol::Float64) end
+
 # This builds the initial bundle model.
 function build_bundle_model!(method::AbstractMethod)
 	add_variables!(method)

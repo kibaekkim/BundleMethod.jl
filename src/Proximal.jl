@@ -95,6 +95,11 @@ get_solution(method::ProximalMethod) = method.x0
 # This returns objective value.
 get_objective_value(method::ProximalMethod) = sum(method.fx0)
 
+# This sets the termination tolerance.
+function set_bundle_tolerance!(method::ProximalMethod, tol::Float64)
+	method.ϵ_s = tol
+end
+
 # This creates an objective function to the bundle model.
 function add_objective_function!(method::ProximalMethod)
 	bundle = get_model(method)
