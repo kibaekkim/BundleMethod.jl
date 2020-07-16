@@ -22,9 +22,12 @@ const BM = BundleMethod
 
     BM.get_model(method::BaseMethod) = method.model
 
+    BM.set_user_data(BM.get_model(bm), nothing)
+
     BM.set_optimizer(bm, Ipopt.Optimizer)
     BM.get_solution(bm)
     @test BM.get_objective_value(bm) == Inf
+    BM.set_bundle_tolerance!(bm, 0.0)
 
     BM.build_bundle_model!(bm)
     model = BM.get_jump_model(bm)
@@ -65,6 +68,7 @@ end
     pm2 = BM.ProximalMethod(n, N, evaluate_f)
     pm2.M_g = 3
     pm2.maxiter = 3
+    BM.set_bundle_tolerance!(pm, 1e-6)
 
     # Set optimization solver to the internal JuMP.Model
     model2 = BM.get_jump_model(pm2)

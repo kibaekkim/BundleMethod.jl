@@ -69,6 +69,11 @@ get_solution(method::TrustRegionMethod) = method.x0
 # This returns objective value.
 get_objective_value(method::TrustRegionMethod) = sum(method.fx0)
 
+# This sets the termination tolerance.
+function set_bundle_tolerance!(method::TrustRegionMethod, tol::Float64)
+	method.ϵ = tol
+end
+
 function evaluate_functions!(method::TrustRegionMethod)
 	method.fy, method.g = method.model.evaluate_f(method.y)
 end
