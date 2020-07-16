@@ -20,8 +20,6 @@ mutable struct BundleModel
 	N::Int            # number of separable functions in the objective
 	model::JuMP.Model # Bundle model
 
-	# splitvars::Bool	# Are variables decomposed for each function?
-
 	# user-defined function to evaluate f
 	# and return the value and its subgradients
 	evaluate_f
@@ -56,7 +54,6 @@ end
 
 include("Abstract.jl")
 include("Proximal.jl")
-# include("ProximalDualMethod.jl")
 include("TrustRegion.jl")
 
 end
