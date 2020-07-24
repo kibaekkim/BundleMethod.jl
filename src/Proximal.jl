@@ -47,7 +47,7 @@ mutable struct ProximalMethod <: AbstractMethod
 	cut_pool::Vector{JuMP.ConstraintRef}
 	statistics::Dict{Any,Any} # arbitrary collection of statistics
 
-	function ProximalMethod(n::Int, N::Int, func)
+	function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
 		pm = new()
 		pm.model = BundleModel(n, N, func)
 		
