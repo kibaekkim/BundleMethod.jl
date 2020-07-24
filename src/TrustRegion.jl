@@ -33,10 +33,12 @@ mutable struct TrustRegionMethod <: AbstractMethod
     statistics::Dict{Any,Any} # arbitrary collection of statistics
 
     # Constructor
-    function TrustRegionMethod(n::Int, N::Int, func)
+    function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
         trm = new()
 
-		trm.y = zeros(n)
+        @assert length(init) == n
+
+		trm.y = init
         trm.fy, trm.g = func(trm.y)
         trm.θ = zeros(N)
                 
@@ -49,7 +51,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.ϵ = 1.0e-6
 
         trm.Δ = 10.0
-        trm.x0 = zeros(n)
+        trm.x0 = init
 		trm.fx0 = copy(trm.fy)
 
         trm.tr_pool = []
