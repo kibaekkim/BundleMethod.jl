@@ -38,7 +38,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
 
         @assert length(init) == n
 
-		trm.y = init
+		trm.y = copy(init)
         trm.fy, trm.g = func(trm.y)
         trm.θ = zeros(N)
                 
@@ -51,7 +51,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.ϵ = 1.0e-6
 
         trm.Δ = 10.0
-        trm.x0 = init
+        trm.x0 = copy(init)
 		trm.fx0 = copy(trm.fy)
 
         trm.tr_pool = []
