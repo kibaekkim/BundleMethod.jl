@@ -47,12 +47,11 @@ mutable struct ProximalMethod <: AbstractMethod
 	cut_pool::Vector{JuMP.ConstraintRef}
 	statistics::Dict{Any,Any} # arbitrary collection of statistics
 
-	function ProximalMethod(n::Int, N::Int, func, init) # init is a dummy placeholder. needs to be fixed.
-		println("!!asserting that init is zeros!! ")
+	function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
 		pm = new()
 		pm.model = BundleModel(n, N, func)
 		
-		pm.y = zeros(n)
+		pm.y = copy(init)
 		pm.fy = zeros(N)
 		pm.g = Dict()
 
@@ -70,7 +69,7 @@ mutable struct ProximalMethod <: AbstractMethod
 		pm.m_L = 1.0e-4
 		pm.m_R = 0.5
 		
-		pm.x0 = zeros(n)
+		pm.x0 = copy(init)
 		pm.x1 = zeros(n)
 		pm.fx0 = zeros(N)
 		pm.fx1 = zeros(N)
