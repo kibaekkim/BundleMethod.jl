@@ -48,7 +48,7 @@ mutable struct ProximalMethod <: AbstractMethod
 	statistics::Dict{Any,Any} # arbitrary collection of statistics
 
 	function ProximalMethod(n::Int, N::Int, func, init) # init is a dummy placeholder. needs to be fixed.
-		println("!!running with dummy init!! ")
+		println("!!asserting that init is zeros!! ")
 		pm = new()
 		pm.model = BundleModel(n, N, func)
 		
