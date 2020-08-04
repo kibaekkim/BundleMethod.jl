@@ -50,6 +50,8 @@ mutable struct ProximalMethod <: AbstractMethod
 	function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
 		pm = new()
 		pm.model = BundleModel(n, N, func)
+
+		@assert length(init) == n
 		
 		pm.y = copy(init)
 		pm.fy = zeros(N)
