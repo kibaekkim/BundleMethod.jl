@@ -45,12 +45,12 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.iter = 0
         trm.maxiter = 1000
         
-        trm.Δ_ub = 20.0
+        trm.Δ_ub = 1.0e+6
         trm.Δ_lb = 0.0
         trm.ξ = 0.4
         trm.ϵ = 1.0e-6
 
-        trm.Δ = 10.0
+        trm.Δ = 100.0
         trm.x0 = copy(init)
 		trm.fx0 = copy(trm.fy)
 
