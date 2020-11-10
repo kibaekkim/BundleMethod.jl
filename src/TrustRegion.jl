@@ -206,8 +206,8 @@ end
 
 # The following functions are specific to trust region method
 function update_Δ_serious_step!(method::TrustRegionMethod)
-    method.Δ = (method.Δ + method.Δ_ub) / 2
-    @show method.Δ
+    # method.Δ = (method.Δ + method.Δ_ub) / 2
+    method.Δ = min(method.Δ * 2, method.Δ_ub)
 end
 
 function update_Δ_null_step!(method::TrustRegionMethod)
