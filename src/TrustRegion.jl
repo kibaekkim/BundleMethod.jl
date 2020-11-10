@@ -139,7 +139,7 @@ function termination_test(method::TrustRegionMethod)::Bool
 	if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
 		return true
 	end
-	if sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0)))
+    if sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0))) && !is_trust_region_binding(method)
 		println("TERMINATION: Optimal")
 		return true
 	end
@@ -156,7 +156,10 @@ function update_bundles!(method::TrustRegionMethod)
         # serious step
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
-        update_Δ_serious_step!(method)
+
+        if is_trust_region_binding(method) && predicted_decrease_ratio >= 0.5
+            update_Δ_serious_step!(method)
+        end
     else
         # null step
         update_Δ_null_step!(method)
@@ -184,6 +187,21 @@ end
 
 function update_iteration!(method::TrustRegionMethod)
     method.iter += 1
+end
+
+function is_trust_region_binding(method::TrustRegionMethod)
+    is_binding = false
+    bundle = get_model(method)
+    model = get_model(bundle)
+    x = model[:x]
+    for i = 1:bundle.n
+        xval = JuMP.value(x[i])
+        if isapprox(xval, method.x0[i] + method.Δ) || isapprox(xval, method.x0[i] - method.Δ)
+            is_binding = true
+            break
+        end
+    end
+    return is_binding
 end
 
 # The following functions are specific to trust region method
