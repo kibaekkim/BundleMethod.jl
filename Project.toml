@@ -1,7 +1,7 @@
 name = "BundleMethod"
 uuid = "e8a6717a-069f-43d5-9ac2-a49b1ec5be7b"
 authors = ["Kibaek Kim <kimk@anl.gov>"]
-version = "0.1.4"
+version = "0.2.0"
 
 [deps]
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
@@ -10,7 +10,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
-JuMP = "0.21.3"
+JuMP = "0.21.5"
 julia = "1"
 
 [extras]

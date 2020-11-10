@@ -14,10 +14,10 @@ mutable struct TrustRegionMethod <: AbstractMethod
     y::Array{Float64,1}  # current iterate of dimension n
     fy::Array{Float64,1} # objective values at y for N functions
     θ::Array{Float64,1}  # θ value of trust region master problem
-	g::Dict{Int,SparseVector{Float64}}  # subgradients of dimension n for N functions
+    g::Dict{Int,SparseVector{Float64}}  # subgradients of dimension n for N functions
 
-	iter::Int # iteration counter
-	maxiter::Int # iteration limit
+    iter::Int # iteration counter
+    maxiter::Int # iteration limit
  
     # Algorithm-specific parameters
     Δ_ub::Float64           # trust region bound upper limit
@@ -26,11 +26,14 @@ mutable struct TrustRegionMethod <: AbstractMethod
     ϵ::Float64              # convergence criterion
 
     Δ::Float64              # current trust region size
-	x0::Array{Float64,1}	# current trust region center (at iteration k)
-	fx0::Array{Float64,1}	# current best objective values
+    x0::Array{Float64,1}	# current trust region center (at iteration k)
+    fx0::Array{Float64,1}	# current best objective values
 
     tr_pool::Vector{JuMP.ConstraintRef} # references to current trust region bounds
     statistics::Dict{Any,Any} # arbitrary collection of statistics
+
+    null_count::Int         # ineffective search count
+    start_time::Float64     # start time
 
     # Constructor
     function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
@@ -38,24 +41,27 @@ mutable struct TrustRegionMethod <: AbstractMethod
 
         @assert length(init) == n
 
-		trm.y = copy(init)
+        trm.y = copy(init)
         trm.fy, trm.g = func(trm.y)
         trm.θ = zeros(N)
                 
         trm.iter = 0
         trm.maxiter = 1000
         
-        trm.Δ_ub = 20.0
-        trm.Δ_lb = 0.0
-        trm.ξ = 0.4
+        trm.Δ_ub = 1.0e+4
+        trm.Δ_lb = 1.0e-4
+        trm.ξ = 1.0e-4
         trm.ϵ = 1.0e-6
 
-        trm.Δ = 10.0
+        trm.Δ = 100.0
         trm.x0 = copy(init)
-		trm.fx0 = copy(trm.fy)
+        trm.fx0 = copy(trm.fy)
 
         trm.tr_pool = []
         trm.statistics = Dict()
+
+        trm.null_count = 0
+        trm.start_time = time()
 
         trm.model = BundleModel(n, N, func)
         return trm
@@ -73,11 +79,11 @@ get_objective_value(method::TrustRegionMethod) = sum(method.fx0)
 
 # This sets the termination tolerance.
 function set_bundle_tolerance!(method::TrustRegionMethod, tol::Float64)
-	method.ϵ = tol
+    method.ϵ = tol
 end
 
 function evaluate_functions!(method::TrustRegionMethod)
-	method.fy, method.g = method.model.evaluate_f(method.y)
+    method.fy, method.g = method.model.evaluate_f(method.y)
 end
 
 # This will specifically add trust region bounds to model
@@ -88,7 +94,7 @@ function add_constraints!(method::TrustRegionMethod)
     x = model[:x]
     center = method.x0
     method.tr_pool = []
-    for i=1:bundle.n
+    for i = 1:bundle.n
         ref = @constraint(model, x[i] <= center[i] + Δ)
         push!(method.tr_pool, ref)
         ref = @constraint(model, x[i] >= center[i] - Δ)
@@ -101,66 +107,79 @@ function add_bundle_constraint!(
     bundle = get_model(method)
     model = get_model(bundle)
     x = model[:x]
-    @constraint(model, fy + sum(g[i] * (x[i] - y[i]) for i=1:bundle.n) <= θ)
+    @constraint(model, fy + sum(g[i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ)
 end
 
 function add_bundles!(method::TrustRegionMethod)
     y = method.y
-	fy = method.fy
-	g = method.g
+    fy = method.fy
+    g = method.g
 
-	# add bundles constraints to the model
+    # add bundles constraints to the model
     bundle = get_model(method)
     θ = bundle.model[:θ]
-	for j = 1:bundle.N
-		add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
-	end
+    for j = 1:bundle.N
+        add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
+    end
 end
 
 function collect_model_solution!(method::TrustRegionMethod)
     bundle = get_model(method)
-	model = get_model(bundle)
-	if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
-		x = model[:x]
-		θ = model[:θ]
-		for i=1:bundle.n
-			method.y[i] = JuMP.value(x[i])
-		end
-		for j=1:bundle.N
-			method.θ[j] = JuMP.value(θ[j])
-		end
-	else
-		@error "Unexpected model solution status ($(JuMP.termination_status(model)))"
-	end
+    model = get_model(bundle)
+    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
+        x = model[:x]
+        θ = model[:θ]
+        for i = 1:bundle.n
+            method.y[i] = JuMP.value(x[i])
+        end
+        for j = 1:bundle.N
+            method.θ[j] = JuMP.value(θ[j])
+        end
+    else
+        @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
+    end
 end
 
 function termination_test(method::TrustRegionMethod)::Bool
     model = get_jump_model(method)
-	if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
-		return true
-	end
-	if sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0)))
-		println("TERMINATION: Optimal")
-		return true
-	end
-	if method.iter >= method.maxiter
-		println("TERMINATION: Maximum number of iterations reached.")
-		return true
-	end
-	return false
+    if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
+        return true
+    end
+    if sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0))) && !is_trust_region_binding(method)
+        println("TERMINATION: Optimal")
+        return true
+    end
+    if method.iter >= method.maxiter
+        println("TERMINATION: Maximum number of iterations reached.")
+        return true
+    end
+    return false
 end
 
 # Update bundles and trust region constraints based on 
 function update_bundles!(method::TrustRegionMethod)
-    if sum(method.fx0) - sum(method.fy) >=  method.ξ * (sum(method.fx0) - sum(method.θ))
+    predicted_decrease_ratio = (sum(method.fx0) - sum(method.fy)) / (sum(method.fx0) - sum(method.θ))
+    if predicted_decrease_ratio >=  method.ξ
         # serious step
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
-        update_Δ_serious_step!(method)
+
+        if is_trust_region_binding(method) && predicted_decrease_ratio >= 0.5
+            update_Δ_serious_step!(method)
+        end
+        method.null_count = 0
     else
         # null step
-        update_Δ_null_step!(method)
         add_bundles!(method::TrustRegionMethod)
+
+        ρ = min(1.0, method.Δ) * (-predicted_decrease_ratio)
+        if ρ > 0
+            method.null_count += 1
+        end
+        if ρ >= 3 || (method.null_count >= 3 && abs(ρ - 2) < 1)
+            update_Δ_null_step!(method)
+            method.null_count = 0
+        end
     end
     # remove old trust region bounds
     model = get_jump_model(method)
@@ -173,22 +192,38 @@ end
 
 # This displays iteration information.
 function display_info!(method::TrustRegionMethod)
-	model = get_jump_model(method)
-	nrows = 0
-	for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
-		nrows += num_constraints(model, AffExpr, tp)
-	end
-	@printf("Iter %d: ncols %d, nrows %d, Δ %e, fx0 %e, m %e, fy %e\n",
-		method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy))
+    model = get_jump_model(method)
+    nrows = 0
+    for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
+        nrows += num_constraints(model, AffExpr, tp)
+    end
+    @printf("Iter %4d: ncols %d, nrows %d, Δ %e, fx0 %+e, m %+e, fy %+e, time %8.1f sec.\n",
+        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), time() - method.start_time)
 end
 
 function update_iteration!(method::TrustRegionMethod)
     method.iter += 1
 end
 
+function is_trust_region_binding(method::TrustRegionMethod)
+    is_binding = false
+    bundle = get_model(method)
+    model = get_model(bundle)
+    x = model[:x]
+    for i = 1:bundle.n
+        xval = JuMP.value(x[i])
+        if isapprox(xval, method.x0[i] + method.Δ) || isapprox(xval, method.x0[i] - method.Δ)
+            is_binding = true
+            break
+        end
+    end
+    return is_binding
+end
+
 # The following functions are specific to trust region method
 function update_Δ_serious_step!(method::TrustRegionMethod)
-    method.Δ = (method.Δ + method.Δ_ub) / 2
+    # method.Δ = (method.Δ + method.Δ_ub) / 2
+    method.Δ = min(method.Δ * 2, method.Δ_ub)
 end
 
 function update_Δ_null_step!(method::TrustRegionMethod)

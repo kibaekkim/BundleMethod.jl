@@ -8,10 +8,10 @@ const BM = BundleMethod
 
 #=
 This example considers:
-	minimize \sum_{i=1}^N \sum_{j=1}^n b_i * (x_j - a_ij)^2
-	subject to -1 <= x_j <= 1
+    minimize \sum_{i=1}^N \sum_{j=1}^n b_i * (x_j - a_ij)^2
+    subject to -1 <= x_j <= 1
 where objective function is separable such that
-	f_i(x) := \sum_{j=1}^n b_i * (x_j - a_ij)^2
+    f_i(x) := \sum_{j=1}^n b_i * (x_j - a_ij)^2
 =#
 
 # Randomly generate problem data
@@ -29,18 +29,18 @@ This function takes a new trial point `y` of dimension `n`
   and gradient of the functions.
 =#
 function evaluate_f(y)
-	N, n = size(a)
-	fvals = zeros(N)
-	grads = Dict{Int,SparseVector}()
-	for i = 1:N
-		grad = zeros(n)
-		for j = 1:n
-			fvals[i] += b[i] * (y[j] - a[i,j])^2
-			grad[j] += 2 * b[i] * (y[j] - a[i,j])
-		end
-		grads[i] = grad
-	end
-	return fvals, grads
+    N, n = size(a)
+    fvals = zeros(N)
+    grads = Dict{Int,SparseVector}()
+    for i = 1:N
+        grad = zeros(n)
+        for j = 1:n
+            fvals[i] += b[i] * (y[j] - a[i,j])^2
+            grad[j] += 2 * b[i] * (y[j] - a[i,j])
+        end
+        grads[i] = grad
+    end
+    return fvals, grads
 end
 
 # This initializes the proximal bundle method with required arguments.
@@ -53,10 +53,10 @@ set_optimizer_attribute(model, "print_level", 0)
 
 # We overwrite the function to have column bounds.
 function BM.add_variables!(method::BM.ProximalMethod)
-	bundle = BM.get_model(method)
-	model = BM.get_model(bundle)
-	@variable(model, -1 <= x[i=1:bundle.n] <= 1)
-	@variable(model, θ[j=1:bundle.N])
+    bundle = BM.get_model(method)
+    model = BM.get_model(bundle)
+    @variable(model, -1 <= x[i=1:bundle.n] <= 1)
+    @variable(model, θ[j=1:bundle.N])
 end
 
 # This builds the bundle model.

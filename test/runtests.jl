@@ -11,7 +11,7 @@ const BM = BundleMethod
     mutable struct BaseMethod <: BM.AbstractMethod
         model::BM.BundleModel
         function BaseMethod()
-            return new(BM.BundleModel(1,1,nothing))
+            return new(BM.BundleModel(1, 1, nothing))
         end
     end
 
@@ -50,7 +50,7 @@ end
 
     vm = JuMP.Model(Ipopt.Optimizer)
     @variable(vm, -1 <= vm_x[j=1:n] <= 1)
-    @objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i=1:N, j=1:n))
+    @objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i = 1:N, j = 1:n))
     optimize!(vm)
     objval = JuMP.objective_value(vm)
     xval = Dict{Int,Float64}()
@@ -84,7 +84,7 @@ end
     include("../examples/tr_simple.jl")
     vm = JuMP.Model(Ipopt.Optimizer)
     @variable(vm, -1 <= vm_x[j=1:n] <= 1)
-    @objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i=1:N, j=1:n))
+    @objective(vm, Min, sum(b[i] * (vm_x[j] - a[i,j])^2 for i = 1:N, j = 1:n))
     optimize!(vm)
     objval = JuMP.objective_value(vm)
     xval = Dict{Int,Float64}()
