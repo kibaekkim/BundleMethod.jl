@@ -26,11 +26,14 @@ mutable struct TrustRegionMethod <: AbstractMethod
     ϵ::Float64              # convergence criterion
 
     Δ::Float64              # current trust region size
-	x0::Array{Float64,1}	# current trust region center (at iteration k)
-	fx0::Array{Float64,1}	# current best objective values
+    x0::Array{Float64,1}	# current trust region center (at iteration k)
+    fx0::Array{Float64,1}	# current best objective values
 
     tr_pool::Vector{JuMP.ConstraintRef} # references to current trust region bounds
     statistics::Dict{Any,Any} # arbitrary collection of statistics
+
+    null_count::Int         # ineffective search count
+    start_time::Float64     # start time
 
     # Constructor
     function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
@@ -45,9 +48,9 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.iter = 0
         trm.maxiter = 1000
         
-        trm.Δ_ub = 1.0e+6
-        trm.Δ_lb = 0.0
-        trm.ξ = 0.4
+        trm.Δ_ub = 1.0e+4
+        trm.Δ_lb = 1.0e-4
+        trm.ξ = 1.0e-4
         trm.ϵ = 1.0e-6
 
         trm.Δ = 100.0
@@ -56,6 +59,9 @@ mutable struct TrustRegionMethod <: AbstractMethod
 
         trm.tr_pool = []
         trm.statistics = Dict()
+
+        trm.null_count = 0
+        trm.start_time = time()
 
         trm.model = BundleModel(n, N, func)
         return trm
@@ -152,7 +158,8 @@ end
 
 # Update bundles and trust region constraints based on 
 function update_bundles!(method::TrustRegionMethod)
-    if sum(method.fx0) - sum(method.fy) >=  method.ξ * (sum(method.fx0) - sum(method.θ))
+    predicted_decrease_ratio = (sum(method.fx0) - sum(method.fy)) / (sum(method.fx0) - sum(method.θ))
+    if predicted_decrease_ratio >=  method.ξ
         # serious step
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
@@ -160,10 +167,19 @@ function update_bundles!(method::TrustRegionMethod)
         if is_trust_region_binding(method) && predicted_decrease_ratio >= 0.5
             update_Δ_serious_step!(method)
         end
+        method.null_count = 0
     else
         # null step
-        update_Δ_null_step!(method)
         add_bundles!(method::TrustRegionMethod)
+
+        ρ = min(1.0, method.Δ) * (-predicted_decrease_ratio)
+        if ρ > 0
+            method.null_count += 1
+        end
+        if ρ >= 3 || (method.null_count >= 3 && abs(ρ - 2) < 1)
+            update_Δ_null_step!(method)
+            method.null_count = 0
+        end
     end
     # remove old trust region bounds
     model = get_jump_model(method)
