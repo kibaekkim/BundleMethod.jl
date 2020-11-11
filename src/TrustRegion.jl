@@ -20,6 +20,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
     maxiter::Int # iteration limit
  
     # Algorithm-specific parameters
+    linerr::Float64         # linearization error
     Δ_ub::Float64           # trust region bound upper limit
     Δ_lb::Float64           # trust region bound lower limit
     ξ::Float64              # serious step criterion
@@ -48,6 +49,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.iter = 0
         trm.maxiter = 1000
         
+        trm.linerr = 0.0
         trm.Δ_ub = 1.0e+4
         trm.Δ_lb = 1.0e-4
         trm.ξ = 1.0e-4
@@ -115,8 +117,15 @@ function add_bundles!(method::TrustRegionMethod)
     fy = method.fy
     g = method.g
 
-    # add bundles constraints to the model
     bundle = get_model(method)
+
+    # compute linearization error
+    method.linerr = sum(method.fx0) - sum(fy)
+    for j = 1:bundle.N, i = 1:bundle.n
+        method.linerr -= g[j][i] * (method.x0[i] - y[i])
+    end
+
+    # add bundles constraints to the model
     θ = bundle.model[:θ]
     for j = 1:bundle.N
         add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
@@ -172,12 +181,15 @@ function update_bundles!(method::TrustRegionMethod)
         # null step
         add_bundles!(method::TrustRegionMethod)
 
-        ρ = min(1.0, method.Δ) * (-predicted_decrease_ratio)
+        ρ = min(1.0, method.Δ) * max(
+            -predicted_decrease_ratio, 
+            method.linerr / ( sum(method.fx0) - sum(method.θ) )
+        )
         if ρ > 0
             method.null_count += 1
         end
         if ρ >= 3 || (method.null_count >= 3 && abs(ρ - 2) < 1)
-            update_Δ_null_step!(method)
+            update_Δ_null_step!(method, ρ)
             method.null_count = 0
         end
     end
@@ -197,8 +209,8 @@ function display_info!(method::TrustRegionMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %4d: ncols %d, nrows %d, Δ %e, fx0 %+e, m %+e, fy %+e, time %8.1f sec.\n",
-        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), time() - method.start_time)
+    @printf("Iter %4d: ncols %d, nrows %d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, time %8.1f sec.\n",
+        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, time() - method.start_time)
 end
 
 function update_iteration!(method::TrustRegionMethod)
@@ -222,10 +234,9 @@ end
 
 # The following functions are specific to trust region method
 function update_Δ_serious_step!(method::TrustRegionMethod)
-    # method.Δ = (method.Δ + method.Δ_ub) / 2
     method.Δ = min(method.Δ * 2, method.Δ_ub)
 end
 
-function update_Δ_null_step!(method::TrustRegionMethod)
-    method.Δ = (method.Δ + method.Δ_lb) / 2
+function update_Δ_null_step!(method::TrustRegionMethod, ρ = 4.0)
+    method.Δ = max(method.Δ / min(4.0, ρ), method.Δ_lb)
 end
