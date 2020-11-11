@@ -70,6 +70,31 @@ mutable struct TrustRegionMethod <: AbstractMethod
     end
 end
 
+function store_initial_variable_bounds!(method::TrustRegionMethod)
+    bundle = get_model(method)
+    model = get_model(bundle)
+    x = model[:x]
+    for i = 1:bundle.n
+        if has_lower_bound(x[i])
+            method.x_lb[i] = lower_bound(x[i])
+        else
+            method.x_lb[i] = -Inf
+        end
+        if has_upper_bound(x[i])
+            method.x_ub[i] = upper_bound(x[i])
+        else
+            method.x_ub[i] = Inf
+        end
+    end
+end
+
+function build_bundle_model!(method::TrustRegionMethod)
+    add_variables!(method)
+    store_initial_variable_bounds!(method)
+    add_objective_function!(method)
+    add_constraints!(method)
+end
+
 # This returns BundleModel object.
 get_model(method::TrustRegionMethod)::BundleModel = method.model
 
