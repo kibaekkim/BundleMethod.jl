@@ -26,11 +26,12 @@ mutable struct TrustRegionMethod <: AbstractMethod
     ξ::Float64              # serious step criterion
     ϵ::Float64              # convergence criterion
 
+    x_lb::Array{Float64,1}  # original variable lower bound
+    x_ub::Array{Float64,1}  # original variable upper bound
     Δ::Float64              # current trust region size
     x0::Array{Float64,1}	# current trust region center (at iteration k)
     fx0::Array{Float64,1}	# current best objective values
 
-    tr_pool::Vector{JuMP.ConstraintRef} # references to current trust region bounds
     statistics::Dict{Any,Any} # arbitrary collection of statistics
 
     null_count::Int         # ineffective search count
@@ -55,11 +56,12 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.ξ = 1.0e-4
         trm.ϵ = 1.0e-6
 
+        trm.x_lb = zeros(n)
+        trm.x_ub = zeros(n)
         trm.Δ = 100.0
         trm.x0 = copy(init)
         trm.fx0 = copy(trm.fy)
 
-        trm.tr_pool = []
         trm.statistics = Dict()
 
         trm.null_count = 0
@@ -120,12 +122,9 @@ function add_constraints!(method::TrustRegionMethod)
     Δ = method.Δ
     x = model[:x]
     center = method.x0
-    method.tr_pool = []
     for i = 1:bundle.n
-        ref = @constraint(model, x[i] <= center[i] + Δ)
-        push!(method.tr_pool, ref)
-        ref = @constraint(model, x[i] >= center[i] - Δ)
-        push!(method.tr_pool, ref)
+        set_lower_bound(x[i], max(center[i] - Δ, method.x_lb[i]))
+        set_upper_bound(x[i], min(center[i] + Δ, method.x_ub[i]))
     end
 end
 
@@ -217,11 +216,6 @@ function update_bundles!(method::TrustRegionMethod)
             update_Δ_null_step!(method, ρ)
             method.null_count = 0
         end
-    end
-    # remove old trust region bounds
-    model = get_jump_model(method)
-    for (i, ref) in enumerate(method.tr_pool)
-        delete(model, ref)
     end
     # add new trust region bounds
     add_constraints!(method::TrustRegionMethod)    
