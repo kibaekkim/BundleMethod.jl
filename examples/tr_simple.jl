@@ -1,4 +1,5 @@
 using BundleMethod
+using SparseArrays
 using JuMP
 using Ipopt
 using Random
@@ -50,7 +51,7 @@ set_optimizer(model, Ipopt.Optimizer)
 set_optimizer_attribute(model, "print_level", 0)
 
 # We overwrite the function to have column bounds.
-function BM.add_variables!(method::BM.ProximalMethod)
+function BM.add_variables!(method::BM.TrustRegionMethod)
     bundle = BM.get_model(method)
     model = BM.get_model(bundle)
     @variable(model, -1 <= x[i=1:bundle.n] <= 1)
