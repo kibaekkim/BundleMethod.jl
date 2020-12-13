@@ -63,6 +63,10 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.fx0 = copy(trm.fy)
 
         trm.statistics = Dict()
+        trm.statistics["fy_history"] = []
+        trm.statistics["fx0_history"] = []
+        trm.statistics["x0_history"] = Dict()
+        trm.statistics["y_history"] = Dict()
 
         trm.null_count = 0
         trm.start_time = time()
@@ -201,6 +205,9 @@ function update_bundles!(method::TrustRegionMethod)
             update_Δ_serious_step!(method)
         end
         method.null_count = 0
+    elseif sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0))) && is_trust_region_binding(method)
+        # increase trust region size
+        update_Δ_serious_step!(method)
     else
         # null step
         add_bundles!(method::TrustRegionMethod)
@@ -230,6 +237,11 @@ function display_info!(method::TrustRegionMethod)
     end
     @printf("Iter %4d: ncols %d, nrows %d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, time %8.1f sec.\n",
         method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, time() - method.start_time)
+    # record history (we can put this in another function)
+    push!(method.statistics["fx0_history"], copy(method.fx0))
+    push!(method.statistics["fy_history"], copy(method.fy))
+    method.statistics["x0_history"][method.iter+1] = copy(method.x0)
+    method.statistics["y_history"][method.iter+1] = copy(method.y)
 end
 
 function update_iteration!(method::TrustRegionMethod)
@@ -243,8 +255,9 @@ function is_trust_region_binding(method::TrustRegionMethod)
     x = model[:x]
     for i = 1:bundle.n
         xval = JuMP.value(x[i])
-        if isapprox(xval, method.x0[i] + method.Δ) || isapprox(xval, method.x0[i] - method.Δ)
+        if isapprox(xval, method.x0[i] + method.Δ, atol = 1e-6, rtol = 1e-4) || isapprox(xval, method.x0[i] - method.Δ, atol = 1e-6, rtol = 1e-4)
             is_binding = true
+            println("Binding dimension $(i):", xval, " in [$(method.x0[i] - method.Δ), $(method.x0[i] + method.Δ)]")
             break
         end
     end
