@@ -35,9 +35,7 @@ mutable struct ProximalMethod <: AbstractMethod
     m_R::Float64
 
     x0::Array{Float64,1}	# current best solution (at iteration k)
-    x1::Array{Float64,1}	# new best solution (at iteration k+1)
     fx0::Array{Float64,1}	# current best objective values
-    fx1::Array{Float64,1}	# new best objective values (at iteration k+1)
     d::Array{Float64,1}
     v::Array{Float64,1}
     sum_of_v::Float64
@@ -46,6 +44,7 @@ mutable struct ProximalMethod <: AbstractMethod
 
     cut_pool::Vector{JuMP.ConstraintRef}
     statistics::Dict{Any,Any} # arbitrary collection of statistics
+    start_time::Float64     # start time
 
     function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
         pm = new()
@@ -62,19 +61,17 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.iter = 0
         pm.maxiter = 3000
         
-        pm.u = 0.1
-        pm.u_min = 1.0e-2
+        pm.u = 0.01
+        pm.u_min = 1.0e-8
         pm.M_g = 1e+6
         pm.ϵ_float = 1.0e-8
-        pm.ϵ_s = 1.0e-6
+        pm.ϵ_s = 1.0e-5
         pm.ϵ_v = Inf
         pm.m_L = 1.0e-4
         pm.m_R = 0.5
         
         pm.x0 = copy(init)
-        pm.x1 = zeros(n)
         pm.fx0 = zeros(N)
-        pm.fx1 = zeros(N)
         pm.d = zeros(n)
         pm.v = zeros(N)
         pm.sum_of_v = 0.0
@@ -83,6 +80,7 @@ mutable struct ProximalMethod <: AbstractMethod
         
         pm.cut_pool = []
         pm.statistics = Dict()
+        pm.start_time = time()
         
         return pm
     end
@@ -161,13 +159,69 @@ This method assumes user-defined function of the form
 """
 function evaluate_functions!(method::ProximalMethod)
     method.fy, method.g = method.model.evaluate_f(method.y)
+
+    if method.iter == 0
+        method.x0 = copy(method.y)
+        method.fx0 = copy(method.fy)
+    end
+
+    bundle = get_model(method)
+    for j = 1:bundle.N
+        method.α[j] = method.fx0[j] - (method.fy[j] - method.g[j]' * method.d)
+    end
 end
 
 # This updates the bundle pool by removing and/or adding bundle objects.
 function update_bundles!(method::ProximalMethod)
-    prox_update!(method)
-    purge_bundles!(method)
+    # purge_bundles!(method)
+
+    sumfy = sum(method.fy)
+    sumfx0 = sum(method.fx0)
+    if sumfy - sumfx0 <= method.m_L * method.sum_of_v
+        # @printf("Serious step: predicted decrease_ratio %e <= 0\n", sumfy - sumfx0 - method.m_L * method.sum_of_v)
+        # serious step
+        method.x0 = copy(method.y)
+        method.fx0 = copy(method.fy)
+    else
+        # @printf("Null step: predicted decrease_ratio %e > 0\n", sumfy - sumfx0 - method.m_L * method.sum_of_v)
+    end
+
     add_bundles!(method)
+
+    u = copy(method.u)
+    if sumfy - sumfx0 <= method.m_L * method.sum_of_v
+        if method.i > 0 && sumfy - sumfx0 <= method.m_R * method.sum_of_v
+            u = 2 * method.u * (1 - (sumfy - sumfx0) / method.sum_of_v)
+        elseif method.i > 3
+            u = method.u / 2
+        end
+        # @show u, method.u/10, method.u_min
+        newu = max(u, method.u / 10, method.u_min)
+        method.ϵ_v = max(method.ϵ_v, -2 * method.sum_of_v)
+        method.i = max(method.i + 1, 1)
+        if newu != method.u
+            method.u = newu
+            method.i = 1
+        end
+        update_objective!(method)
+    else
+        p = norm(-method.u .* method.d, 1)
+        α_tilde = -p^2 / method.u - method.sum_of_v
+
+        method.ϵ_v = min(method.ϵ_v, p + α_tilde)
+        if sum(method.α) > max(method.ϵ_v, -10 * method.sum_of_v) && method.i < -3
+            u = 2 * method.u * (1 - (sumfy - sumfx0) / method.sum_of_v)
+        end
+        # @show u, 10 * method.u
+        newu = min(u, 10 * method.u)
+        method.i = min(method.i - 1, -1)
+        if newu != method.u
+            method.u = newu
+            method.i = -1
+            update_objective!(method)
+        end
+    end
+    # update_objective!(method)
 end
 
 function purge_bundles!(method::ProximalMethod)
@@ -200,40 +254,22 @@ function add_bundles!(method::ProximalMethod)
     fy = method.fy
     g = method.g
 
-    method.fx0 = copy(fy)
-
     # add bundles as constraints to the model
     bundle = get_model(method)
+    model = get_model(bundle)
     for j = 1:bundle.N
-        x = bundle.model[:x]
-        θ = bundle.model[:θ]
-
-        if method.iter == 0
-            add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
-        else
-            gd = g[j]' * method.d
-            method.α[j] = method.fx0[j] - (fy[j] - gd)
-
-            if -method.α[j] + gd > method.v[j] + method.ϵ_float
-                add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
-            end
+        if method.iter == 0 || -method.α[j] + g[j]' * method.d > method.v[j] + method.ϵ_float
+            x = model[:x]
+            θ = model[:θ]
+            ref = @constraint(model, fy[j] + sum(g[j][i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ[j])
+            push!(method.cut_pool, ref)
         end
     end
 end
 
 # This updates the iteration information.
 function update_iteration!(method::ProximalMethod)
-    # update u
-    updated = update_weight(method)
-
-    # Update objective function
-    if updated
-        update_objective!(method)
-    end
-
     method.iter += 1
-    method.x0 = copy(method.x1)
-    method.fx0 = copy(method.fx1)
 end
 
 # This displays iteration information.
@@ -243,83 +279,14 @@ function display_info!(method::ProximalMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %d: ncols %d, nrows %d, fx0 %e, fx1 %e, fy %e, v %e, u %e, i %d\n",
-        method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fx1), sum(method.fy), method.sum_of_v, method.u, method.i)
+    @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, time %8.1f sec.\n",
+        method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fy), sum(method.v + method.fx0), 
+        method.sum_of_v, method.u, method.i, time() - method.start_time)
 end
 
 """
 The following functions are specific for this method only.
 """
-
-function add_bundle_constraint!(
-        method::ProximalMethod, y::Array{Float64,1}, fy::Float64, g::SparseVector{Float64}, θ::JuMP.VariableRef)
-    bundle = get_model(method)
-    model = get_model(bundle)
-    x = model[:x]
-    ref = @constraint(model, fy + sum(g[i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ)
-    push!(method.cut_pool, ref)
-    # method.statistics["y"][method.iter] = y
-    # method.statistics["fy"][method.iter] = fy
-    # bundle.history[j,method.iter] = Bundle(constr, deepcopy(y), fy[j], g[j,:])
-end
-
-# Proximal point update based on descent test
-function prox_update!(method::ProximalMethod)
-    if sum(method.fy) <= sum(method.fx0) + method.m_L * method.sum_of_v
-        method.x1 = copy(method.y)
-        method.fx1 = copy(method.fy)
-    else
-        method.x1 = copy(method.x0)
-        method.fx1 = copy(method.fx0)
-    end
-end
-
-# Update proximal term weight and return whether it is updated
-function update_weight(method::ProximalMethod)::Bool
-    fysum = sum(method.fy)
-    fx0sum = sum(method.fx0)
-    updated = false
-
-    # update weight u
-    u = method.u
-    if fysum <= fx0sum + method.m_L * method.sum_of_v
-        if method.i > 0 && fysum <= fx0sum + method.m_R * method.sum_of_v
-            u = 2 * method.u * (1 - (fysum - fx0sum) / method.sum_of_v)
-        elseif method.i > 3
-            u = method.u / 2
-        end
-        # @show (u, bundle.u/10, bundle.u_min)
-        newu = max(u, method.u / 10, method.u_min)
-        method.ϵ_v = max(method.ϵ_v, -2 * method.sum_of_v)
-        method.i = max(method.i + 1, 1)
-        if newu != method.u
-            method.i = 1
-        end
-        updated = true
-    else
-        p = norm(-method.u .* method.d, 1)
-        α_tilde = -p^2 / method.u - method.sum_of_v
-
-        method.ϵ_v = min(method.ϵ_v, p + α_tilde)
-        if sum(method.α) > max(method.ϵ_v, -10 * method.sum_of_v) && method.i < -3
-            u = 2 * method.u * (1 - (fysum - fx0sum) / method.sum_of_v)
-        elseif method.i < 5
-            u = method.u * 1.2
-        end
-        newu = min(u, 10 * method.u)
-        method.i = min(method.i - 1, -1)
-        if newu != method.u
-            method.i = -1
-        end
-    end
-    # newu = 1.0e-6
-    if newu != method.u
-        method.u = newu
-        updated = true
-    end
-
-    return updated
-end
 
 function update_objective!(method::ProximalMethod)
     bundle = get_model(method)
@@ -328,5 +295,5 @@ function update_objective!(method::ProximalMethod)
     θ = model[:θ]
     @objective(model, Min,
           sum(θ[j] for j = 1:bundle.N)
-        + 0.5 * method.u * sum((x[i] - method.x1[i])^2 for i = 1:bundle.n))
+        + 0.5 * method.u * sum((x[i] - method.x0[i])^2 for i = 1:bundle.n))
 end
