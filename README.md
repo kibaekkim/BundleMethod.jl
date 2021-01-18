@@ -1,5 +1,5 @@
 # BundleMethod.jl
-[![Build Status](https://travis-ci.com/kibaekkim/BundleMethod.jl.svg?branch=master)](https://travis-ci.com/kibaekkim/BundleMethod.jl)
+![Run tests](https://github.com/kibaekkim/BundleMethod.jl/workflows/Run%20tests/badge.svg)
 [![codecov](https://codecov.io/gh/kibaekkim/BundleMethod.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/kibaekkim/BundleMethod.jl)
 
 This package provides a template for implementing bundle methods.
