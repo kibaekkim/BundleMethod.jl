@@ -48,17 +48,17 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.θ = zeros(N)
                 
         trm.iter = 0
-        trm.maxiter = 1000
+        trm.maxiter = 3000
         
         trm.linerr = 0.0
-        trm.Δ_ub = 1.0e+4
+        trm.Δ_ub = 1.0e+3
         trm.Δ_lb = 1.0e-4
         trm.ξ = 1.0e-4
-        trm.ϵ = 1.0e-6
+        trm.ϵ = 1.0e-5
 
         trm.x_lb = zeros(n)
         trm.x_ub = zeros(n)
-        trm.Δ = 100.0
+        trm.Δ = 10.0
         trm.x0 = copy(init)
         trm.fx0 = copy(trm.fy)
 
@@ -182,7 +182,7 @@ function termination_test(method::TrustRegionMethod)::Bool
     if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
         return true
     end
-    if sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0))) && !is_trust_region_binding(method)
+    if sum(method.fx0) - sum(method.θ) <= method.ϵ * (1 + abs(sum(method.fx0))) #&& !is_trust_region_binding(method)
         println("TERMINATION: Optimal")
         return true
     end
@@ -197,11 +197,14 @@ end
 function update_bundles!(method::TrustRegionMethod)
     predicted_decrease_ratio = (sum(method.fx0) - sum(method.fy)) / (sum(method.fx0) - sum(method.θ))
     if predicted_decrease_ratio >=  method.ξ
+
+        is_binding = is_trust_region_binding(method)
+
         # serious step
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
 
-        if is_trust_region_binding(method) && predicted_decrease_ratio >= 0.5
+        if is_binding && predicted_decrease_ratio >= 0.5
             update_Δ_serious_step!(method)
         end
         method.null_count = 0
@@ -212,14 +215,11 @@ function update_bundles!(method::TrustRegionMethod)
         # null step
         add_bundles!(method::TrustRegionMethod)
 
-        ρ = min(1.0, method.Δ) * max(
-            -predicted_decrease_ratio, 
-            method.linerr / ( sum(method.fx0) - sum(method.θ) )
-        )
+        ρ = min(1.0, method.Δ) * (-predicted_decrease_ratio)
         if ρ > 0
             method.null_count += 1
         end
-        if ρ >= 3 || (method.null_count >= 3 && abs(ρ - 2) < 1)
+        if ρ > 3 || (method.null_count >= 3 && ρ > 1)
             update_Δ_null_step!(method, ρ)
             method.null_count = 0
         end
