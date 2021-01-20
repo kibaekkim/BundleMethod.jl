@@ -35,6 +35,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
     statistics::Dict{Any,Any} # arbitrary collection of statistics
 
     null_count::Int         # ineffective search count
+    eval_time::Float64      # function evaluation time
     start_time::Float64     # start time
 
     # Constructor
@@ -65,6 +66,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.statistics = Dict()
 
         trm.null_count = 0
+        trm.eval_time = 0.0
         trm.start_time = time()
 
         trm.model = BundleModel(n, N, func)
@@ -112,7 +114,9 @@ function set_bundle_tolerance!(method::TrustRegionMethod, tol::Float64)
 end
 
 function evaluate_functions!(method::TrustRegionMethod)
+    stime = time()
     method.fy, method.g = method.model.evaluate_f(method.y)
+    method.eval_time += time() - stime
 end
 
 # This will specifically add trust region bounds to model
@@ -228,8 +232,9 @@ function display_info!(method::TrustRegionMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %4d: ncols %d, nrows %d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, time %8.1f sec.\n",
-        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, time() - method.start_time)
+    @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1f s, eval time %6.1f s, time %6.1f s\n",
+        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
+        method.model.total_time, method.eval_time, time() - method.start_time)
 end
 
 function update_iteration!(method::TrustRegionMethod)

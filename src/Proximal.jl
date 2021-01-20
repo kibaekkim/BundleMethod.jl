@@ -44,7 +44,8 @@ mutable struct ProximalMethod <: AbstractMethod
 
     cut_pool::Vector{JuMP.ConstraintRef}
     statistics::Dict{Any,Any} # arbitrary collection of statistics
-    start_time::Float64     # start time
+    eval_time::Float64        # function evaluation time
+    start_time::Float64       # start time
 
     function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
         pm = new()
@@ -80,6 +81,7 @@ mutable struct ProximalMethod <: AbstractMethod
         
         pm.cut_pool = []
         pm.statistics = Dict()
+        pm.eval_time = 0.0
         pm.start_time = time()
         
         return pm
@@ -158,7 +160,11 @@ This method assumes user-defined function of the form
     returning function evaluation value and gradient as first and second outputs, resp.
 """
 function evaluate_functions!(method::ProximalMethod)
+    stime = time()
+
     method.fy, method.g = method.model.evaluate_f(method.y)
+
+    method.eval_time += time() - stime
 
     if method.iter == 0
         method.x0 = copy(method.y)
@@ -279,9 +285,10 @@ function display_info!(method::ProximalMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, time %8.1f sec.\n",
+    @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1f s, eval time %6.1f s, time %6.1f s\n",
         method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fy), sum(method.v + method.fx0), 
-        method.sum_of_v, method.u, method.i, time() - method.start_time)
+        method.sum_of_v, method.u, method.i, 
+        method.model.total_time, method.eval_time, time() - method.start_time)
 end
 
 """
