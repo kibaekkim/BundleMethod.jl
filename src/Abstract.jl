@@ -50,6 +50,7 @@ function add_constraints!(method::AbstractMethod) end
 # This implements the algorithmic steps.
 function run!(method::AbstractMethod)
     add_initial_bundles!(method)
+    update_iteration!(method)
     solve_bundle_model!(method)
     display_info!(method)
     while !termination_test(method)
