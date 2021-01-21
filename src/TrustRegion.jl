@@ -232,7 +232,7 @@ function display_info!(method::TrustRegionMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1f s, eval time %6.1f s, time %6.1f s\n",
+    @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
         method.model.total_time, method.eval_time, time() - method.start_time)
 end
