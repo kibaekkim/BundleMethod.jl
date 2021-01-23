@@ -24,8 +24,7 @@ mutable struct BundleModel
     # and return the value and its subgradients
     evaluate_f
 
-    time::Float64
-    total_time::Float64
+    time::Vector{Float64}
 
     user_data
 
@@ -36,8 +35,7 @@ mutable struct BundleModel
         bundle.model = JuMP.Model()
         # bundle.splitvars = splitvars
         bundle.evaluate_f = func
-        bundle.time = 0.0
-        bundle.total_time = 0.0
+        bundle.time = []
         bundle.user_data = nothing
         return bundle
     end
@@ -55,8 +53,7 @@ function solve_model!(model::BundleModel)
     m = get_model(model)
     @assert !isnothing(m.moi_backend.optimizer)
     JuMP.optimize!(m)
-    model.time = JuMP.solve_time(m)
-    model.total_time += model.time
+    push!(model.time, JuMP.solve_time(m))
 end
 
 include("Abstract.jl")

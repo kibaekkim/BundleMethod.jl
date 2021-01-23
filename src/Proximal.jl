@@ -288,7 +288,7 @@ function display_info!(method::ProximalMethod)
     @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fy), sum(method.v + method.fx0), 
         method.sum_of_v, method.u, method.i, 
-        method.model.total_time, method.statistics["total_eval_time"], time() - method.start_time)
+        sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
 end
 
 """

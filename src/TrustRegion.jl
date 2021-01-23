@@ -234,7 +234,7 @@ function display_info!(method::TrustRegionMethod)
     end
     @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
-        method.model.total_time, method.statistics["total_eval_time"], time() - method.start_time)
+        sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
 end
 
 function update_iteration!(method::TrustRegionMethod)
