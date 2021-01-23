@@ -19,7 +19,7 @@ mutable struct ProximalMethod <: AbstractMethod
     fy::Array{Float64,1} # objective values at y for N functions
     g::Dict{Int,SparseVector{Float64}} # subgradients of dimension n for N functions
 
-    dual::Dict{JuMP.ConstraintRef,Float64} # dual variable values to bundle constraints
+    cuts::Dict{JuMP.ConstraintRef,Dict{String,Float64}}
 
     iter::Int # iteration counter
     maxiter::Int # iteration limit
@@ -33,6 +33,7 @@ mutable struct ProximalMethod <: AbstractMethod
     ϵ_v::Float64
     m_L::Float64
     m_R::Float64
+    max_age::Float64
 
     x0::Array{Float64,1}	# current best solution (at iteration k)
     fx0::Array{Float64,1}	# current best objective values
@@ -42,7 +43,6 @@ mutable struct ProximalMethod <: AbstractMethod
     i::Int
     α::Array{Float64,1}
 
-    cut_pool::Vector{JuMP.ConstraintRef}
     statistics::Dict{Any,Any} # arbitrary collection of statistics
     eval_time::Float64        # function evaluation time
     start_time::Float64       # start time
@@ -57,7 +57,7 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.fy = zeros(N)
         pm.g = Dict()
 
-        pm.dual = Dict()
+        pm.cuts = Dict()
         
         pm.iter = 0
         pm.maxiter = 3000
@@ -70,6 +70,7 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.ϵ_v = Inf
         pm.m_L = 1.0e-4
         pm.m_R = 0.5
+        pm.max_age = 10.0
         
         pm.x0 = copy(init)
         pm.fx0 = zeros(N)
@@ -79,9 +80,8 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.i = 0
         pm.α = zeros(N)
         
-        pm.cut_pool = []
-        pm.statistics = Dict()
-        pm.eval_time = 0.0
+        pm.statistics = Dict(
+            "total_eval_time" => 0.0)
         pm.start_time = time()
         
         return pm
@@ -127,9 +127,12 @@ function collect_model_solution!(method::ProximalMethod)
             method.v[j] = JuMP.value(θ[j]) - method.fx0[j]
         end
         method.sum_of_v = sum(method.v)
-        for (i, ref) in enumerate(method.cut_pool)
+        for (ref, cut) in method.cuts
             @assert JuMP.is_valid(get_jump_model(method), ref)
-            method.dual[ref] = JuMP.dual(ref)
+            cut["dual"] = JuMP.dual(ref)
+            if cut["dual"] > -1e-6
+                cut["age"] += 1
+            end
         end
     else
         @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
@@ -162,7 +165,7 @@ This method assumes user-defined function of the form
 function evaluate_functions!(method::ProximalMethod)
     stime = time()
     method.fy, method.g = method.model.evaluate_f(method.y)
-    method.eval_time += time() - stime
+    method.statistics["total_eval_time"] += time() - stime
 
     if method.iter == 0
         method.x0 = copy(method.y)
@@ -177,7 +180,7 @@ end
 
 # This updates the bundle pool by removing and/or adding bundle objects.
 function update_bundles!(method::ProximalMethod)
-    # purge_bundles!(method)
+    purge_bundles!(method)
 
     sumfy = sum(method.fy)
     sumfx0 = sum(method.fx0)
@@ -229,28 +232,24 @@ function update_bundles!(method::ProximalMethod)
 end
 
 function purge_bundles!(method::ProximalMethod)
-    model = get_jump_model(method)
-    ncuts = length(method.cut_pool)
-    ncuts_to_purge = ncuts - method.M_g
-    refs_removed = Int[]
-    if ncuts_to_purge > 0
-        for (i, ref) in enumerate(method.cut_pool)
-            @assert JuMP.is_valid(model, ref)
-            if method.dual[ref] < -1e-8
-                JuMP.delete(model, ref)
-                push!(refs_removed, i)
-                ncuts_to_purge -= 1
-            end
-            if ncuts_to_purge == 0
-                break
-            end
+    bundle = get_model(method)
+    model = get_model(bundle)
+    ncuts_removed = 0
+    ncols = JuMP.num_variables(model)
+    ncuts = length(method.cuts)
+    for (ref, cut) in method.cuts
+        if ncuts - ncuts_removed <= ncols
+            break
+        end
+        if cut["age"] >= method.max_age
+            JuMP.delete(model, ref)
+            delete!(method.cuts, ref)
+            ncuts_removed += 1
         end
     end
-
-    # remove constraint references from cut_pool
-    deleteat!(method.cut_pool, refs_removed)
-
-    return length(refs_removed)
+    if ncuts_removed > 0
+        @printf("Removed %d inactive cuts.\n", ncuts_removed)
+    end
 end
 
 function add_bundles!(method::ProximalMethod)
@@ -266,7 +265,10 @@ function add_bundles!(method::ProximalMethod)
             x = model[:x]
             θ = model[:θ]
             ref = @constraint(model, fy[j] + sum(g[j][i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ[j])
-            push!(method.cut_pool, ref)
+            method.cuts[ref] = Dict(
+                "age" => 0.0,
+                "dual" => 0.0
+            )
         end
     end
 end
@@ -286,7 +288,7 @@ function display_info!(method::ProximalMethod)
     @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fy), sum(method.v + method.fx0), 
         method.sum_of_v, method.u, method.i, 
-        method.model.total_time, method.eval_time, time() - method.start_time)
+        method.model.total_time, method.statistics["total_eval_time"], time() - method.start_time)
 end
 
 """
