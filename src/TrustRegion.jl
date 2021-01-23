@@ -63,10 +63,10 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.x0 = copy(init)
         trm.fx0 = copy(trm.fy)
 
-        trm.statistics = Dict()
+        trm.statistics = Dict(
+            "total_eval_time" => 0.0)
 
         trm.null_count = 0
-        trm.eval_time = 0.0
         trm.start_time = time()
 
         trm.model = BundleModel(n, N, func)
@@ -116,7 +116,7 @@ end
 function evaluate_functions!(method::TrustRegionMethod)
     stime = time()
     method.fy, method.g = method.model.evaluate_f(method.y)
-    method.eval_time += time() - stime
+    method.statistics["total_eval_time"] += time() - stime
 end
 
 # This will specifically add trust region bounds to model
@@ -234,7 +234,7 @@ function display_info!(method::TrustRegionMethod)
     end
     @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
-        method.model.total_time, method.eval_time, time() - method.start_time)
+        method.model.total_time, method.statistics["total_eval_time"], time() - method.start_time)
 end
 
 function update_iteration!(method::TrustRegionMethod)
