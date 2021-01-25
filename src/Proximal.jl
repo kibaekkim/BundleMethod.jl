@@ -97,7 +97,7 @@ get_model(method::ProximalMethod)::BundleModel = method.model
 get_solution(method::ProximalMethod) = method.x0
 
 # This returns objective value.
-get_objective_value(method::ProximalMethod) = sum(method.fx0) * method.scaling_factor
+get_objective_value(method::ProximalMethod) = sum(method.fx0)
 
 # This sets the termination tolerance.
 function set_bundle_tolerance!(method::ProximalMethod, tol::Float64)
@@ -126,7 +126,7 @@ function collect_model_solution!(method::ProximalMethod)
             method.d[i] = method.y[i] - method.x0[i]
         end
         for j = 1:bundle.N
-            method.v[j] = JuMP.value(θ[j]) - method.fx0[j]
+            method.v[j] = method.scaling_factor * JuMP.value(θ[j]) - method.fx0[j]
         end
         method.sum_of_v = sum(method.v)
         for (ref, cut) in method.cuts
@@ -148,7 +148,7 @@ function termination_test(method::ProximalMethod)
         return true
     end
     if method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
-        println("TERMINATION: Optimal: v = ", method.sum_of_v * method.scaling_factor)
+        println("TERMINATION: Optimal: v = ", method.sum_of_v)
         return true
     end
     if method.iter >= method.maxiter
@@ -176,20 +176,13 @@ function evaluate_functions!(method::ProximalMethod)
         end
         # method.scaling_factor = maximum(method.scaling_factor, norm(method.fy, Inf))
         @show method.scaling_factor
-    end
-
-    for j = 1:bundle.N
-        method.fy[j] /= method.scaling_factor
-        method.g[j] /= method.scaling_factor
+        method.u = 1.0 / method.scaling_factor
+        method.u_min = method.u * 1e-6
     end
 
     if method.iter == 0
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
-    end
-
-    for j = 1:bundle.N
-        method.α[j] = method.fx0[j] - (method.fy[j] - method.g[j]' * method.d)
     end
 end
 
@@ -206,6 +199,10 @@ function update_bundles!(method::ProximalMethod)
         method.fx0 = copy(method.fy)
     else
         # @printf("Null step: predicted decrease_ratio %e > 0\n", sumfy - sumfx0 - method.m_L * method.sum_of_v)
+    end
+
+    for j in eachindex(method.α)
+        method.α[j] = method.fx0[j] - (method.fy[j] - method.g[j]' * method.d)
     end
 
     add_bundles!(method)
@@ -268,23 +265,21 @@ function purge_bundles!(method::ProximalMethod)
 end
 
 function add_bundles!(method::ProximalMethod)
-    y = method.y
-    fy = method.fy
-    g = method.g
-
     # add bundles as constraints to the model
     bundle = get_model(method)
     model = get_model(bundle)
     for j = 1:bundle.N
-        if method.iter == 0 || -method.α[j] + g[j]' * method.d > method.v[j] + method.ϵ_float
+        if method.iter == 0 || -method.α[j] + method.g[j]' * method.d > method.v[j] + method.ϵ_float
             x = model[:x]
             θ = model[:θ]
-            ref = @constraint(model, fy[j] + sum(g[j][i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ[j])
+            fy = method.fy[j] / method.scaling_factor
+            g = method.g[j] ./ method.scaling_factor
+            ref = @constraint(model, fy + sum(g[i] * (x[i] - method.y[i]) for i = 1:bundle.n) <= θ[j])
             method.cuts[ref] = Dict(
                 "age" => 0.0,
                 "dual" => 0.0
             )
-            @show ref
+            # @show ref
         end
     end
 end
@@ -303,10 +298,10 @@ function display_info!(method::ProximalMethod)
     end
     @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, 
-        sum(method.fx0) * method.scaling_factor, 
-        sum(method.fy) * method.scaling_factor, 
-        sum(method.v + method.fx0) * method.scaling_factor, 
-        method.sum_of_v * method.scaling_factor, 
+        sum(method.fx0), 
+        sum(method.fy), 
+        sum(method.v + method.fx0), 
+        method.sum_of_v, 
         method.u, method.i, 
         sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
 end
