@@ -18,6 +18,7 @@ mutable struct ProximalMethod <: AbstractMethod
     y::Array{Float64,1}  # current iterate of dimension n
     fy::Array{Float64,1} # objective values at y for N functions
     g::Dict{Int,SparseVector{Float64}} # subgradients of dimension n for N functions
+    scaling_factor::Float64
 
     cuts::Dict{JuMP.ConstraintRef,Dict{String,Float64}}
 
@@ -56,6 +57,7 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.y = copy(init)
         pm.fy = zeros(N)
         pm.g = Dict()
+        pm.scaling_factor = 1.0
 
         pm.cuts = Dict()
         
@@ -95,7 +97,7 @@ get_model(method::ProximalMethod)::BundleModel = method.model
 get_solution(method::ProximalMethod) = method.x0
 
 # This returns objective value.
-get_objective_value(method::ProximalMethod) = sum(method.fx0)
+get_objective_value(method::ProximalMethod) = sum(method.fx0) * method.scaling_factor
 
 # This sets the termination tolerance.
 function set_bundle_tolerance!(method::ProximalMethod, tol::Float64)
@@ -146,7 +148,7 @@ function termination_test(method::ProximalMethod)
         return true
     end
     if method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
-        println("TERMINATION: Optimal: v = ", method.sum_of_v)
+        println("TERMINATION: Optimal: v = ", method.sum_of_v * method.scaling_factor)
         return true
     end
     if method.iter >= method.maxiter
@@ -167,12 +169,25 @@ function evaluate_functions!(method::ProximalMethod)
     method.fy, method.g = method.model.evaluate_f(method.y)
     method.statistics["total_eval_time"] += time() - stime
 
+    bundle = get_model(method)
+    if method.iter == 0
+        for j = 1:bundle.N
+            method.scaling_factor = max(method.scaling_factor, norm(method.g[j], Inf))
+        end
+        # method.scaling_factor = maximum(method.scaling_factor, norm(method.fy, Inf))
+        @show method.scaling_factor
+    end
+
+    for j = 1:bundle.N
+        method.fy[j] /= method.scaling_factor
+        method.g[j] /= method.scaling_factor
+    end
+
     if method.iter == 0
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
     end
 
-    bundle = get_model(method)
     for j = 1:bundle.N
         method.α[j] = method.fx0[j] - (method.fy[j] - method.g[j]' * method.d)
     end
@@ -269,6 +284,7 @@ function add_bundles!(method::ProximalMethod)
                 "age" => 0.0,
                 "dual" => 0.0
             )
+            @show ref
         end
     end
 end
@@ -286,8 +302,12 @@ function display_info!(method::ProximalMethod)
         nrows += num_constraints(model, AffExpr, tp)
     end
     @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
-        method.iter, num_variables(model), nrows, sum(method.fx0), sum(method.fy), sum(method.v + method.fx0), 
-        method.sum_of_v, method.u, method.i, 
+        method.iter, num_variables(model), nrows, 
+        sum(method.fx0) * method.scaling_factor, 
+        sum(method.fy) * method.scaling_factor, 
+        sum(method.v + method.fx0) * method.scaling_factor, 
+        method.sum_of_v * method.scaling_factor, 
+        method.u, method.i, 
         sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
 end
 
