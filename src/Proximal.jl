@@ -174,9 +174,11 @@ function evaluate_functions!(method::ProximalMethod)
         for j = 1:bundle.N
             method.scaling_factor = max(method.scaling_factor, norm(method.g[j], Inf))
         end
+        method.scaling_factor *= bundle.N
         # method.scaling_factor = maximum(method.scaling_factor, norm(method.fy, Inf))
         @show method.scaling_factor
-        method.u = 1.0 / method.scaling_factor
+        # method.u = 1.0 / method.scaling_factor
+        method.u = 1.0
         method.u_min = method.u * 1e-6
     end
 
