@@ -65,7 +65,7 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.maxiter = 3000
         
         pm.u = 0.01
-        pm.u_min = 1.0e-8
+        pm.u_min = 1.0e-6
         pm.M_g = 1e+6
         pm.ϵ_float = 1.0e-8
         pm.ϵ_s = 1.0e-5
@@ -177,14 +177,10 @@ function evaluate_functions!(method::ProximalMethod)
         method.scaling_factor *= bundle.N
         # method.scaling_factor = maximum(method.scaling_factor, norm(method.fy, Inf))
         @show method.scaling_factor
-        # method.u = 1.0 / method.scaling_factor
-        method.u = 1.0
-        method.u_min = method.u * 1e-6
-    end
-
-    if method.iter == 0
+        
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
+        method.u = method.u_min / method.ϵ_s
     end
 end
 
