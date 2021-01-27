@@ -173,7 +173,7 @@ function evaluate_functions!(method::ProximalMethod)
         for j = 1:bundle.N
             method.u += norm(method.g[j], 2)
         end
-        method.u /= bundle.n
+        method.u /= bundle.N
 
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
