@@ -145,7 +145,11 @@ function termination_test(method::ProximalMethod)
     if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
         return true
     end
-    if method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
+    if method.i < 0 && method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
+        println("TERMINATION: Optimal: v = ", method.sum_of_v)
+        return true
+    end
+    if method.i > 0 && method.sum_of_v >= -method.ϵ_s * 1e-2 * (1 + abs(sum(method.fx0)))
         println("TERMINATION: Optimal: v = ", method.sum_of_v)
         return true
     end
