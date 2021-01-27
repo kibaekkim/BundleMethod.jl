@@ -18,9 +18,8 @@ mutable struct ProximalMethod <: AbstractMethod
     y::Array{Float64,1}  # current iterate of dimension n
     fy::Array{Float64,1} # objective values at y for N functions
     g::Dict{Int,SparseVector{Float64}} # subgradients of dimension n for N functions
-    scaling_factor::Float64
 
-    cuts::Dict{JuMP.ConstraintRef,Dict{String,Float64}}
+    cuts::Dict{JuMP.ConstraintRef,Dict{String,Any}}
 
     iter::Int # iteration counter
     maxiter::Int # iteration limit
@@ -57,7 +56,6 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.y = copy(init)
         pm.fy = zeros(N)
         pm.g = Dict()
-        pm.scaling_factor = 1.0
 
         pm.cuts = Dict()
         
@@ -107,11 +105,11 @@ end
 # This creates an objective function to the bundle model.
 function add_objective_function!(method::ProximalMethod)
     bundle = get_model(method)
-    x = bundle.model[:x]
-    θ = bundle.model[:θ]
+    d = bundle.model[:x]
+    v = bundle.model[:θ]
     @objective(bundle.model, Min,
-          sum(θ[j] for j = 1:bundle.N)
-        + 0.5 * method.u * sum((x[i] - method.x0[i])^2 for i = 1:bundle.n))
+          sum(v[j] for j = 1:bundle.N)
+        + 0.5 * method.u * sum(d[i]^2 for i = 1:bundle.n))
 end
 
 # This may collect solutions from the bundle model.
@@ -119,20 +117,20 @@ function collect_model_solution!(method::ProximalMethod)
     bundle = get_model(method)
     model = get_model(bundle)
     if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
-        x = model[:x]
-        θ = model[:θ]
+        d = model[:x]
+        v = model[:θ]
         for i = 1:bundle.n
-            method.y[i] = JuMP.value(x[i])
-            method.d[i] = method.y[i] - method.x0[i]
+            method.d[i] = JuMP.value(d[i])
+            method.y[i] = method.x0[i] + method.d[i]
         end
         for j = 1:bundle.N
-            method.v[j] = method.scaling_factor * JuMP.value(θ[j]) - method.fx0[j]
+            method.v[j] = JuMP.value(v[j])
         end
         method.sum_of_v = sum(method.v)
         for (ref, cut) in method.cuts
             @assert JuMP.is_valid(get_jump_model(method), ref)
             cut["dual"] = JuMP.dual(ref)
-            if cut["dual"] > -1e-6
+            if cut["dual"] > -1e-6 && cut["α"] > 0.0
                 cut["age"] += 1
             end
         end
@@ -169,18 +167,16 @@ function evaluate_functions!(method::ProximalMethod)
     method.fy, method.g = method.model.evaluate_f(method.y)
     method.statistics["total_eval_time"] += time() - stime
 
-    bundle = get_model(method)
     if method.iter == 0
+        method.u = 0.0
+        bundle = get_model(method)
         for j = 1:bundle.N
-            method.scaling_factor = max(method.scaling_factor, norm(method.g[j], Inf))
+            method.u += norm(method.g[j], 2)
         end
-        method.scaling_factor *= bundle.N
-        # method.scaling_factor = maximum(method.scaling_factor, norm(method.fy, Inf))
-        @show method.scaling_factor
-        
+        method.u /= bundle.n
+
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
-        method.u = method.u_min / method.ϵ_s
     end
 end
 
@@ -191,16 +187,35 @@ function update_bundles!(method::ProximalMethod)
     sumfy = sum(method.fy)
     sumfx0 = sum(method.fx0)
     if sumfy - sumfx0 <= method.m_L * method.sum_of_v
-        # @printf("Serious step: predicted decrease_ratio %e <= 0\n", sumfy - sumfx0 - method.m_L * method.sum_of_v)
+        # update bundles first
+        for (ref, cut) in method.cuts
+            j::Int = cut["j"]
+            g::SparseVector{Float64} = cut["g"]
+            offset = method.fx0[j] - method.fy[j] + g' * method.d
+            JuMP.add_to_function_constant(ref, offset)
+            # @show ref
+        end
+
+        bundle = get_model(method)
+        model = get_model(bundle)
+        d = model[:x]
+        for i = 1:bundle.n
+            if JuMP.has_upper_bound(d[i])
+                JuMP.set_upper_bound(d[i], JuMP.upper_bound(d[i]) + method.x0[i] - method.y[i])
+            end
+            if JuMP.has_lower_bound(d[i])
+                JuMP.set_lower_bound(d[i], JuMP.lower_bound(d[i]) + method.x0[i] - method.y[i])
+            end
+        end
+
         # serious step
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
+        fill!(method.α, 0.0)
     else
-        # @printf("Null step: predicted decrease_ratio %e > 0\n", sumfy - sumfx0 - method.m_L * method.sum_of_v)
-    end
-
-    for j in eachindex(method.α)
-        method.α[j] = method.fx0[j] - (method.fy[j] - method.g[j]' * method.d)
+        for j in eachindex(method.α)
+            method.α[j] = method.fx0[j] - method.fy[j] + method.g[j]' * method.d
+        end
     end
 
     add_bundles!(method)
@@ -268,14 +283,16 @@ function add_bundles!(method::ProximalMethod)
     model = get_model(bundle)
     for j = 1:bundle.N
         if method.iter == 0 || -method.α[j] + method.g[j]' * method.d > method.v[j] + method.ϵ_float
-            x = model[:x]
-            θ = model[:θ]
-            fy = method.fy[j] / method.scaling_factor
-            g = method.g[j] ./ method.scaling_factor
-            ref = @constraint(model, fy + sum(g[i] * (x[i] - method.y[i]) for i = 1:bundle.n) <= θ[j])
+            d = model[:x]
+            v = model[:θ]
+            g = method.g[j]
+            ref = @constraint(model, sum(g[i] * d[i] for i = 1:bundle.n) - v[j] <= method.α[j])
             method.cuts[ref] = Dict(
                 "age" => 0.0,
-                "dual" => 0.0
+                "dual" => 0.0,
+                "j" => j,
+                "g" => g,
+                "α" => method.α[j]
             )
             # @show ref
         end
@@ -294,11 +311,12 @@ function display_info!(method::ProximalMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
+    fx0 = sum(method.fx0)
     @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
         method.iter, num_variables(model), nrows, 
-        sum(method.fx0), 
+        fx0, 
         sum(method.fy), 
-        sum(method.v + method.fx0), 
+        method.sum_of_v + fx0, 
         method.sum_of_v, 
         method.u, method.i, 
         sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
@@ -311,9 +329,9 @@ The following functions are specific for this method only.
 function update_objective!(method::ProximalMethod)
     bundle = get_model(method)
     model = get_model(bundle)
-    x = model[:x]
-    θ = model[:θ]
+    d = model[:x]
+    v = model[:θ]
     @objective(model, Min,
-          sum(θ[j] for j = 1:bundle.N)
-        + 0.5 * method.u * sum((x[i] - method.x0[i])^2 for i = 1:bundle.n))
+          sum(v[j] for j = 1:bundle.N)
+        + 0.5 * method.u * sum(d[i]^2 for i = 1:bundle.n))
 end
