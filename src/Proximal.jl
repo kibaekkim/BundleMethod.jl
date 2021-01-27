@@ -32,7 +32,7 @@ mutable struct ProximalMethod <: AbstractMethod
     ϵ_s::Float64
     ϵ_v::Float64
     m_L::Float64 # serious step condition parameter (0, 0.5)
-    m_R::Float64 # proximal term update parameter (m_L, 1)
+    m_R::Float64 # proximal term update parameter (0.5, 1)
     max_age::Float64
 
     x0::Array{Float64,1}	# current best solution (at iteration k)
@@ -69,7 +69,7 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.ϵ_s = 1.0e-5
         pm.ϵ_v = Inf
         pm.m_L = 1.0e-4
-        pm.m_R = 0.1
+        pm.m_R = 0.5
         pm.max_age = 10.0
         
         pm.x0 = copy(init)
