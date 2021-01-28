@@ -145,11 +145,7 @@ function termination_test(method::ProximalMethod)
     if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
         return true
     end
-    if method.i < 0 && method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
-        println("TERMINATION: Optimal: v = ", method.sum_of_v)
-        return true
-    end
-    if method.i > 0 && method.sum_of_v >= -method.ϵ_s * 1e-2 * (1 + abs(sum(method.fx0)))
+    if method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
         println("TERMINATION: Optimal: v = ", method.sum_of_v)
         return true
     end
@@ -172,12 +168,12 @@ function evaluate_functions!(method::ProximalMethod)
     method.statistics["total_eval_time"] += time() - stime
 
     if method.iter == 0
-        # method.u = 0.0
-        # bundle = get_model(method)
-        # for j = 1:bundle.N
-        #     method.u += norm(method.g[j], 1)
-        # end
-        # method.u /= bundle.N
+        method.u = 0.0
+        bundle = get_model(method)
+        for j = 1:bundle.N
+            method.u += norm(method.g[j], 1)
+        end
+        method.u /= bundle.N
 
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
