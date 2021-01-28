@@ -62,7 +62,7 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.iter = 0
         pm.maxiter = 3000
         
-        pm.u = 1.0
+        pm.u = 1.e-2
         pm.u_min = 1.0e-6
         pm.M_g = 1e+6
         pm.ϵ_float = 1.0e-8
@@ -168,13 +168,6 @@ function evaluate_functions!(method::ProximalMethod)
     method.statistics["total_eval_time"] += time() - stime
 
     if method.iter == 0
-        # method.u = 0.0
-        # bundle = get_model(method)
-        # for j = 1:bundle.N
-        #     method.u += norm(method.g[j], 1)
-        # end
-        # method.u /= bundle.N
-
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
     end
