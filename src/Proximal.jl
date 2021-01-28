@@ -168,12 +168,12 @@ function evaluate_functions!(method::ProximalMethod)
     method.statistics["total_eval_time"] += time() - stime
 
     if method.iter == 0
-        method.u = 0.0
-        bundle = get_model(method)
-        for j = 1:bundle.N
-            method.u += norm(method.g[j], 1)
-        end
-        method.u /= bundle.N
+        # method.u = 0.0
+        # bundle = get_model(method)
+        # for j = 1:bundle.N
+        #     method.u += norm(method.g[j], 1)
+        # end
+        # method.u /= bundle.N
 
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
