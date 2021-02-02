@@ -130,7 +130,7 @@ function collect_model_solution!(method::ProximalMethod)
         for (ref, cut) in method.cuts
             @assert JuMP.is_valid(get_jump_model(method), ref)
             cut["dual"] = JuMP.dual(ref)
-            if cut["dual"] > -1e-6 && cut["α"] > 0.0
+            if cut["dual"] > -1e-6 #&& cut["α"] > 0.0
                 cut["age"] += 1
             end
         end
