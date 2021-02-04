@@ -47,9 +47,9 @@ mutable struct ProximalMethod <: AbstractMethod
     eval_time::Float64        # function evaluation time
     start_time::Float64       # start time
 
-    function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
+    function ProximalMethod(n::Int, N::Int, ncuts_per_iter::Int, func, init::Array{Float64,1}=zeros(n))
         pm = new()
-        pm.model = BundleModel(n, N, func)
+        pm.model = BundleModel(n, N, ncuts_per_iter, func)
 
         @assert length(init) == n
         
@@ -88,6 +88,8 @@ mutable struct ProximalMethod <: AbstractMethod
     end
 end
 
+ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n)) = ProximalMethod(n, N, 1, func, init)
+
 # This returns BundleModel object.
 get_model(method::ProximalMethod)::BundleModel = method.model
 
@@ -108,7 +110,7 @@ function add_objective_function!(method::ProximalMethod)
     d = bundle.model[:x]
     v = bundle.model[:θ]
     @objective(bundle.model, Min,
-          sum(v[j] for j = 1:bundle.N)
+          sum(v[j] for j = 1:bundle.ncuts_per_iter)
         + 0.5 * method.u * sum(d[i]^2 for i = 1:bundle.n))
 end
 
@@ -123,7 +125,7 @@ function collect_model_solution!(method::ProximalMethod)
             method.d[i] = JuMP.value(d[i])
             method.y[i] = method.x0[i] + method.d[i]
         end
-        for j = 1:bundle.N
+        for j = 1:bundle.ncuts_per_iter
             method.v[j] = JuMP.value(v[j])
         end
         method.sum_of_v = sum(method.v)
@@ -135,6 +137,7 @@ function collect_model_solution!(method::ProximalMethod)
             end
         end
     else
+        JuMP.print(model)
         @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
     end
 end
@@ -177,20 +180,23 @@ end
 function update_bundles!(method::ProximalMethod)
     purge_bundles!(method)
 
+    bundle = get_model(method)
+    model = get_model(bundle)
+
     sumfy = sum(method.fy)
     sumfx0 = sum(method.fx0)
     if sumfy - sumfx0 <= method.m_L * method.sum_of_v
         # update bundles first
         for (ref, cut) in method.cuts
-            j::Int = cut["j"]
+            i::Int = cut["cut_index"]
             g::SparseVector{Float64} = cut["g"]
-            offset = method.fx0[j] - method.fy[j] + g' * method.d
+            offset = g' * method.d
+            offset += sum(method.fx0[j] for j in bundle.cut_indices[i])
+            offset -= sum(method.fy[j] for j in bundle.cut_indices[i])
             JuMP.add_to_function_constant(ref, offset)
             # @show ref
         end
 
-        bundle = get_model(method)
-        model = get_model(bundle)
         d = model[:x]
         for i = 1:bundle.n
             if JuMP.has_upper_bound(d[i])
@@ -274,18 +280,22 @@ function add_bundles!(method::ProximalMethod)
     # add bundles as constraints to the model
     bundle = get_model(method)
     model = get_model(bundle)
-    for j = 1:bundle.N
-        if method.iter == 0 || -method.α[j] + method.g[j]' * method.d > method.v[j] + method.ϵ_float
+    for i = 1:bundle.ncuts_per_iter
+        cut_indices = bundle.cut_indices[i]
+        g = sum(method.g[j] for j in cut_indices)
+        α = sum(method.α[j] for j in cut_indices)
+
+        cut_violation = -α + g' * method.d - method.v[i]
+        if method.iter == 0 || cut_violation > method.ϵ_float
             d = model[:x]
-            v = model[:θ]
-            g = method.g[j]
-            ref = @constraint(model, sum(g[i] * d[i] for i = 1:bundle.n) - v[j] <= method.α[j])
+            v = model[:θ][i]
+            ref = @constraint(model, sum(g[k] * d[k] for k = 1:bundle.n) - v <= α)
             method.cuts[ref] = Dict(
                 "age" => 0.0,
                 "dual" => 0.0,
-                "j" => j,
+                "cut_index" => i,
                 "g" => g,
-                "α" => method.α[j]
+                "α" => α
             )
             # @show ref
         end
@@ -325,6 +335,6 @@ function update_objective!(method::ProximalMethod)
     d = model[:x]
     v = model[:θ]
     @objective(model, Min,
-          sum(v[j] for j = 1:bundle.N)
+          sum(v[j] for j = 1:bundle.ncuts_per_iter)
         + 0.5 * method.u * sum(d[i]^2 for i = 1:bundle.n))
 end

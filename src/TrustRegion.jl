@@ -39,7 +39,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
     start_time::Float64     # start time
 
     # Constructor
-    function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
+    function TrustRegionMethod(n::Int, N::Int, ncuts_per_iter::Int, func, init::Array{Float64,1}=zeros(n))
         trm = new()
 
         @assert length(init) == n
@@ -69,10 +69,12 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.null_count = 0
         trm.start_time = time()
 
-        trm.model = BundleModel(n, N, func)
+        trm.model = BundleModel(n, N, ncuts_per_iter, func)
         return trm
     end
 end
+
+TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n)) = TrustRegionMethod(n, N, 1, func, init)
 
 function store_initial_variable_bounds!(method::TrustRegionMethod)
     bundle = get_model(method)
@@ -155,8 +157,10 @@ function add_bundles!(method::TrustRegionMethod)
 
     # add bundles constraints to the model
     θ = bundle.model[:θ]
-    for j = 1:bundle.N
-        add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
+    for i = 1:bundle.ncuts_per_iter
+        agg_fy = sum(fy[j] for j in bundle.cut_indices[i])
+        agg_g = sum(g[j] for j in bundle.cut_indices[i])
+        add_bundle_constraint!(method, y, agg_fy, agg_g, θ[i])
     end
 end
 
@@ -169,7 +173,7 @@ function collect_model_solution!(method::TrustRegionMethod)
         for i = 1:bundle.n
             method.y[i] = JuMP.value(x[i])
         end
-        for j = 1:bundle.N
+        for j = 1:bundle.ncuts_per_iter
             method.θ[j] = JuMP.value(θ[j])
         end
     else
