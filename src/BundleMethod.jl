@@ -45,6 +45,8 @@ mutable struct BundleModel
     end
 end
 
+BundleModel(n::Int=0, N::Int=0, func=nothing) = BundleModel(n, N, 0, func)
+
 get_model(model::BundleModel)::JuMP.Model = model.model
 
 set_optimizer(model::BundleModel, optimizer) = JuMP.set_optimizer(get_model(model), optimizer)
