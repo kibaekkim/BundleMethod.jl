@@ -22,24 +22,14 @@ mutable struct ProximalMethod <: AbstractMethod
     cuts::Dict{JuMP.ConstraintRef,Dict{String,Any}}
 
     iter::Int # iteration counter
-    maxiter::Int # iteration limit
 
-    # Algorithm-specific parameters
     u::Float64
-    u_min::Float64
-    M_g::Int
-    ϵ_float::Float64	# tolerance for floating point comparison
-    ϵ_s::Float64
-    ϵ_v::Float64
-    m_L::Float64 # serious step condition parameter (0, 0.5)
-    m_R::Float64 # proximal term update parameter (0.5, 1)
-    max_age::Float64
-
     x0::Array{Float64,1}	# current best solution (at iteration k)
     fx0::Array{Float64,1}	# current best objective values
     d::Array{Float64,1}
     v::Array{Float64,1}
     sum_of_v::Float64
+    ϵ_v::Float64
     i::Int
     α::Array{Float64,1}
 
@@ -47,9 +37,14 @@ mutable struct ProximalMethod <: AbstractMethod
     eval_time::Float64        # function evaluation time
     start_time::Float64       # start time
 
-    function ProximalMethod(n::Int, N::Int, ncuts_per_iter::Int, func, init::Array{Float64,1}=zeros(n))
+    params::Parameters
+
+    function ProximalMethod(n::Int, N::Int, func;
+        init::Array{Float64,1} = zeros(n),
+        params::Parameters = Parameters())
+
         pm = new()
-        pm.model = BundleModel(n, N, ncuts_per_iter, func)
+        pm.model = BundleModel(n, N, params.ncuts_per_iter, func)
 
         @assert length(init) == n
         
@@ -60,35 +55,28 @@ mutable struct ProximalMethod <: AbstractMethod
         pm.cuts = Dict()
         
         pm.iter = 0
-        pm.maxiter = 3000
         
-        pm.u = 1.e-2
-        pm.u_min = 1.0e-6
-        pm.M_g = 1e+6
-        pm.ϵ_float = 1.0e-8
-        pm.ϵ_s = 1.0e-5
-        pm.ϵ_v = Inf
-        pm.m_L = 1.0e-4
-        pm.m_R = 0.5
-        pm.max_age = 10.0
-        
+        pm.u = params.u
         pm.x0 = copy(init)
         pm.fx0 = zeros(N)
         pm.d = zeros(n)
         pm.v = zeros(N)
         pm.sum_of_v = 0.0
+        pm.ϵ_v = Inf
         pm.i = 0
         pm.α = zeros(N)
         
         pm.statistics = Dict(
             "total_eval_time" => 0.0)
         pm.start_time = time()
+
+        pm.params = params
         
         return pm
     end
 end
 
-ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n)) = ProximalMethod(n, N, 1, func, init)
+ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}) = ProximalMethod(n, N, func, init = init)
 
 # This returns BundleModel object.
 get_model(method::ProximalMethod)::BundleModel = method.model
@@ -100,9 +88,7 @@ get_solution(method::ProximalMethod) = method.x0
 get_objective_value(method::ProximalMethod) = sum(method.fx0)
 
 # This sets the termination tolerance.
-function set_bundle_tolerance!(method::ProximalMethod, tol::Float64)
-    method.ϵ_s = tol
-end
+set_bundle_tolerance!(method::ProximalMethod, tol::Float64) = set_parameter(method.params, "ϵ_s", tol)
 
 # This creates an objective function to the bundle model.
 function add_objective_function!(method::ProximalMethod)
@@ -148,11 +134,11 @@ function termination_test(method::ProximalMethod)
     if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
         return true
     end
-    if method.sum_of_v >= -method.ϵ_s * (1 + abs(sum(method.fx0)))
+    if method.sum_of_v >= -method.params.ϵ_s * (1 + abs(sum(method.fx0)))
         println("TERMINATION: Optimal: v = ", method.sum_of_v)
         return true
     end
-    if method.iter >= method.maxiter
+    if method.iter >= method.params.maxiter
         println("TERMINATION: Maximum number of iterations reached.")
         return true
     end
@@ -185,7 +171,7 @@ function update_bundles!(method::ProximalMethod)
 
     sumfy = sum(method.fy)
     sumfx0 = sum(method.fx0)
-    if sumfy - sumfx0 <= method.m_L * method.sum_of_v
+    if sumfy - sumfx0 <= method.params.m_L * method.sum_of_v
         # update bundles first
         for (ref, cut) in method.cuts
             i::Int = cut["cut_index"]
@@ -220,14 +206,14 @@ function update_bundles!(method::ProximalMethod)
     add_bundles!(method)
 
     u = copy(method.u)
-    if sumfy - sumfx0 <= method.m_L * method.sum_of_v
-        if method.i > 0 && sumfy - sumfx0 <= method.m_R * method.sum_of_v
+    if sumfy - sumfx0 <= method.params.m_L * method.sum_of_v
+        if method.i > 0 && sumfy - sumfx0 <= method.params.m_R * method.sum_of_v
             u = 2 * method.u * (1 - (sumfy - sumfx0) / method.sum_of_v)
         elseif method.i > 3
             u = method.u / 2
         end
         # @show u, method.u/10, method.u_min
-        newu = max(u, method.u / 10, method.u_min)
+        newu = max(u, method.u / 10, method.params.u_min)
         method.ϵ_v = max(method.ϵ_v, -2 * method.sum_of_v)
         method.i = max(method.i + 1, 1)
         if newu != method.u
@@ -265,7 +251,7 @@ function purge_bundles!(method::ProximalMethod)
         if ncuts - ncuts_removed <= ncols
             break
         end
-        if cut["age"] >= method.max_age
+        if cut["age"] >= method.params.max_age
             JuMP.delete(model, ref)
             delete!(method.cuts, ref)
             ncuts_removed += 1
@@ -286,12 +272,12 @@ function add_bundles!(method::ProximalMethod)
         α = sum(method.α[j] for j in cut_indices)
 
         cut_violation = -α + g' * method.d - method.v[i]
-        if method.iter == 0 || cut_violation > method.ϵ_float
+        if method.iter == 0 || cut_violation > method.params.ϵ_float
             d = model[:x]
             v = model[:θ][i]
             ref = @constraint(model, sum(g[k] * d[k] for k = 1:bundle.n) - v <= α)
             method.cuts[ref] = Dict(
-                "age" => 0.0,
+                "age" => 0,
                 "dual" => 0.0,
                 "cut_index" => i,
                 "g" => g,
