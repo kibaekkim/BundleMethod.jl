@@ -65,10 +65,11 @@ end
         @test isapprox(xval[j], BM.get_solution(pm)[j], rtol=1e-2)
     end
 
-    pm2 = BM.ProximalMethod(n, N, evaluate_f)
-    pm2.M_g = 3
-    pm2.maxiter = 3
-    BM.set_bundle_tolerance!(pm, 1e-6)
+    params = BM.Parameters()
+    BM.set_parameter(params, "maxiter", 3)
+    BM.set_parameter(params, "ϵ_s", 1.e-6)
+
+    pm2 = BM.ProximalMethod(n, N, evaluate_f, params = params)
 
     # Set optimization solver to the internal JuMP.Model
     model2 = BM.get_jump_model(pm2)
