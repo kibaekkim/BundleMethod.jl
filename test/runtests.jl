@@ -11,7 +11,7 @@ const BM = BundleMethod
     mutable struct BaseMethod <: BM.AbstractMethod
         model::BM.BundleModel
         function BaseMethod()
-            return new(BM.BundleModel(1, 1, nothing))
+            return new(BM.BundleModel(1, 1, 1, nothing))
         end
     end
 

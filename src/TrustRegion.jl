@@ -35,10 +35,11 @@ mutable struct TrustRegionMethod <: AbstractMethod
     statistics::Dict{Any,Any} # arbitrary collection of statistics
 
     null_count::Int         # ineffective search count
+    eval_time::Float64      # function evaluation time
     start_time::Float64     # start time
 
     # Constructor
-    function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
+    function TrustRegionMethod(n::Int, N::Int, ncuts_per_iter::Int, func, init::Array{Float64,1}=zeros(n))
         trm = new()
 
         @assert length(init) == n
@@ -62,15 +63,18 @@ mutable struct TrustRegionMethod <: AbstractMethod
         trm.x0 = copy(init)
         trm.fx0 = copy(trm.fy)
 
-        trm.statistics = Dict()
+        trm.statistics = Dict(
+            "total_eval_time" => 0.0)
 
         trm.null_count = 0
         trm.start_time = time()
 
-        trm.model = BundleModel(n, N, func)
+        trm.model = BundleModel(n, N, ncuts_per_iter, func)
         return trm
     end
 end
+
+TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n)) = TrustRegionMethod(n, N, 1, func, init)
 
 function store_initial_variable_bounds!(method::TrustRegionMethod)
     bundle = get_model(method)
@@ -112,7 +116,9 @@ function set_bundle_tolerance!(method::TrustRegionMethod, tol::Float64)
 end
 
 function evaluate_functions!(method::TrustRegionMethod)
+    stime = time()
     method.fy, method.g = method.model.evaluate_f(method.y)
+    method.statistics["total_eval_time"] += time() - stime
 end
 
 # This will specifically add trust region bounds to model
@@ -151,8 +157,10 @@ function add_bundles!(method::TrustRegionMethod)
 
     # add bundles constraints to the model
     θ = bundle.model[:θ]
-    for j = 1:bundle.N
-        add_bundle_constraint!(method, y, fy[j], g[j], θ[j])
+    for i = 1:bundle.ncuts_per_iter
+        agg_fy = sum(fy[j] for j in bundle.cut_indices[i])
+        agg_g = sum(g[j] for j in bundle.cut_indices[i])
+        add_bundle_constraint!(method, y, agg_fy, agg_g, θ[i])
     end
 end
 
@@ -165,7 +173,7 @@ function collect_model_solution!(method::TrustRegionMethod)
         for i = 1:bundle.n
             method.y[i] = JuMP.value(x[i])
         end
-        for j = 1:bundle.N
+        for j = 1:bundle.ncuts_per_iter
             method.θ[j] = JuMP.value(θ[j])
         end
     else
@@ -228,8 +236,9 @@ function display_info!(method::TrustRegionMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %4d: ncols %d, nrows %d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, time %8.1f sec.\n",
-        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, time() - method.start_time)
+    @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
+        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
+        sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
 end
 
 function update_iteration!(method::TrustRegionMethod)
