@@ -19,7 +19,7 @@ Random.seed!(1)
 n = 3
 N = 2
 a = rand(N, n)
-b = rand(N)
+b = rand(N) .* 1.e+2
 
 #=
 User-defined function:

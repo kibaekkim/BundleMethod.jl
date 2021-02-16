@@ -4,9 +4,6 @@ This defines abstract method type
 """
 abstract type AbstractMethod end
 
-# This returns BundleModel object.
-get_model(method::AbstractMethod)::BundleModel = BundleModel()
-
 # This returns the internal JuMP.Model in BundleModel.
 get_jump_model(method::AbstractMethod)::JuMP.Model = get_model(get_model(method))
 
@@ -33,7 +30,7 @@ function add_variables!(method::AbstractMethod)
     bundle = get_model(method)
     model = get_model(bundle)
     @variable(model, x[i=1:bundle.n])
-    @variable(model, θ[j=1:bundle.N])
+    @variable(model, θ[j=1:bundle.ncuts_per_iter])
 end
 
 # This creates an objective function to the bundle model.
@@ -41,7 +38,7 @@ function add_objective_function!(method::AbstractMethod)
     bundle = get_model(method)
     model = get_model(bundle)
     θ = model[:θ]
-    @objective(model, Min, sum(θ[j] for j = 1:bundle.N))
+    @objective(model, Min, sum(θ[j] for j = 1:bundle.ncuts_per_iter))
 end
 
 # This creates constraints to the bundle model.
@@ -50,6 +47,7 @@ function add_constraints!(method::AbstractMethod) end
 # This implements the algorithmic steps.
 function run!(method::AbstractMethod)
     add_initial_bundles!(method)
+    update_iteration!(method)
     solve_bundle_model!(method)
     display_info!(method)
     while !termination_test(method)
