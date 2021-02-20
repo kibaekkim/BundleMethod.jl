@@ -18,6 +18,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
 
     iter::Int # iteration counter
     maxiter::Int # iteration limit
+    limit_val::Union{Float64,Nothing} # termination condition
  
     # Algorithm-specific parameters
     linerr::Float64         # linearization error
@@ -38,7 +39,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
     start_time::Float64     # start time
 
     # Constructor
-    function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
+    function TrustRegionMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n), limit_val::Union{Float64,Nothing}=nothing)
         trm = new()
 
         @assert length(init) == n
@@ -49,6 +50,7 @@ mutable struct TrustRegionMethod <: AbstractMethod
                 
         trm.iter = 0
         trm.maxiter = 3000
+        trm.limit_val = limit_val
         
         trm.linerr = 0.0
         trm.Δ_ub = 1.0e+3
@@ -184,6 +186,10 @@ function termination_test(method::TrustRegionMethod)::Bool
     end
     if method.iter >= method.maxiter
         println("TERMINATION: Maximum number of iterations reached.")
+        return true
+    end
+    if sum(method.fx0) <= method.limit_val
+        println("TERMINATION: Dual objective limit reached.")
         return true
     end
     return false

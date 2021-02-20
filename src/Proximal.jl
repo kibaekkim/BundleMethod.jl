@@ -23,6 +23,7 @@ mutable struct ProximalMethod <: AbstractMethod
 
     iter::Int # iteration counter
     maxiter::Int # iteration limit
+    limit_val::Union{Float64,Nothing} # termination condition
 
     # Algorithm-specific parameters
     u::Float64
@@ -46,7 +47,7 @@ mutable struct ProximalMethod <: AbstractMethod
     statistics::Dict{Any,Any} # arbitrary collection of statistics
     start_time::Float64     # start time
 
-    function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n))
+    function ProximalMethod(n::Int, N::Int, func, init::Array{Float64,1}=zeros(n), limit_val::Union{Float64,Nothing}=nothing)
         pm = new()
         pm.model = BundleModel(n, N, func)
 
@@ -60,6 +61,7 @@ mutable struct ProximalMethod <: AbstractMethod
         
         pm.iter = 0
         pm.maxiter = 3000
+        pm.limit_val = limit_val
         
         pm.u = 0.01
         pm.u_min = 1.0e-8
@@ -146,6 +148,10 @@ function termination_test(method::ProximalMethod)
     end
     if method.iter >= method.maxiter
         println("TERMINATION: Maximum number of iterations reached.")
+        return true
+    end
+    if sum(method.fx0) <= method.limit_val
+        println("TERMINATION: Dual objective limit reached.")
         return true
     end
     return false
