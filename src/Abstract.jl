@@ -18,6 +18,9 @@ get_objective_value(method::AbstractMethod)::Float64 = Inf
 # This sets the termination tolerance.
 function set_bundle_tolerance!(method::AbstractMethod, tol::Float64) end
 
+# This sets the termination wrt objective value
+set_obj_limit(method::AbstractMethod, bound::Float64) = set_parameter(method.params, "obj_limit", bound)
+
 # This builds the initial bundle model.
 function build_bundle_model!(method::AbstractMethod)
     add_variables!(method)

@@ -1,6 +1,7 @@
 Base.@kwdef mutable struct Parameters
     maxiter::Int = 3000     # maximum number of iterations
     ncuts_per_iter::Int = 1 # number of cuts added per iteration
+    obj_limit::Float64 = -Inf # termination condition
 
     ϵ_s::Float64 = 1.e-5 # termination tolerance
     m_L::Float64 = 1.e-4 # serious step condition parameter (0, 0.5)

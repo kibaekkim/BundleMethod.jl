@@ -142,6 +142,10 @@ function termination_test(method::ProximalMethod)
         println("TERMINATION: Maximum number of iterations reached.")
         return true
     end
+    if sum(method.fx0) <= method.params.obj_limit
+        println("TERMINATION: Dual objective limit reached.")
+        return true
+    end
     return false
 end
 
