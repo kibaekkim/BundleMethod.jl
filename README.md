@@ -20,7 +20,7 @@ Using the template, this pacakge implements
 
 Please see examples in `./examples`.
 
-## Bibtex
+## Cite
 
 ```
 @misc{DualDecomposition.jl.0.2.1,
