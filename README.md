@@ -20,7 +20,7 @@ Using the template, this pacakge implements
 
 Please see examples in `./examples`.
 
-## Cite
+## Citing this package
 
 ```
 @misc{BundleMethod.jl.0.3.2,
