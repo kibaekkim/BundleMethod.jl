@@ -23,7 +23,7 @@ Please see examples in `./examples`.
 ## Cite
 
 ```
-@misc{DualDecomposition.jl.0.2.1,
+@misc{BundleMethod.jl.0.3.2,
   author       = {Kim, Kibaek and Zhang, Weiqi and Nakao, Hideaki and Schanen, Michel},
   title        = {{BundleMethod.jl: Implementation of Bundle Methods in Julia}},
   month        = Mar,
