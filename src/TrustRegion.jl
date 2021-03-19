@@ -172,7 +172,7 @@ end
 
 function termination_test(method::TrustRegionMethod)::Bool
     model = get_jump_model(method)
-    if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
+    if JuMP.termination_status(model) ∉ [MOI.OPTIMAL, MOI.ALMOST_OPTIMAL, MOI.LOCALLY_SOLVED]
         return true
     end
     if sum(method.fx0) - sum(method.θ) <= method.params.ϵ_s * (1 + abs(sum(method.fx0))) #&& !is_trust_region_binding(method)

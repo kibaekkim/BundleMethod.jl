@@ -104,7 +104,7 @@ end
 function collect_model_solution!(method::ProximalMethod)
     bundle = get_model(method)
     model = get_model(bundle)
-    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
+    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.ALMOST_OPTIMAL, MOI.LOCALLY_SOLVED]
         d = model[:x]
         v = model[:θ]
         for i = 1:bundle.n
