@@ -123,7 +123,7 @@ function collect_model_solution!(method::ProximalMethod)
             end
         end
     else
-        JuMP.print(model)
+        # JuMP.print(model)
         @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
     end
 end
