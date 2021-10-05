@@ -187,6 +187,10 @@ function termination_test(method::TrustRegionMethod)::Bool
         println("TERMINATION: Dual objective limit reached.")
         return true
     end
+    if time() - method.start_time > method.params.time_limit
+        println("TERMINATION: Time limit reached.")
+        return true
+    end
     return false
 end
 
