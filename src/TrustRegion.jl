@@ -167,6 +167,7 @@ function collect_model_solution!(method::TrustRegionMethod)
         end
     else
         @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
+        print(model)
     end
 end
 
