@@ -171,7 +171,7 @@ function collect_model_solution!(method::TrustRegionMethod)
         JuMP.compute_conflict!(model)
         for (type1, type2) in JuMP.list_of_constraint_types(model)
             for constr in JuMP.all_constraints(model, type1, type2)
-                MOI.get(model, MOI.ConstraintConflictStatus(), constr)
+                println(MOI.get(model, MOI.ConstraintConflictStatus(), constr))
             end
         end
     end
