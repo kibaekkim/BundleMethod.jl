@@ -17,6 +17,7 @@ using JuMP
 include("Parameters.jl")
 include("Abstract.jl")
 include("Model.jl")
+include("Basic.jl")
 include("Proximal.jl")
 include("TrustRegion.jl")
 
