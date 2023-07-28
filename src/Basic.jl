@@ -12,7 +12,6 @@ mutable struct BasicMethod <: AbstractMethod
     model::BundleModel
     P::SparseMatrixCSC{Float64}
     q::SparseVector{Float64}
-    ρ::Float64
 
 
     y::Array{Float64,1}  # current iterate of dimension n
@@ -43,7 +42,6 @@ mutable struct BasicMethod <: AbstractMethod
 
         bm.P = spzeros(n, n)
         bm.q = spzeros(n)
-        bm.ρ = 1.0
 
         bm.y = copy(init)
         bm.fy = zeros(N)
@@ -86,7 +84,7 @@ function add_objective_function!(method::BasicMethod)
     θ = bundle.model[:θ]
     @objective(bundle.model, Min,
           sum(θ[j] for j = 1:bundle.ncuts_per_iter)
-        + 0.5 * method.ρ * x' * method.P * x + method.q' * x)
+        + 0.5 * x' * method.P * x + method.q' * x)
 end
 
 """
