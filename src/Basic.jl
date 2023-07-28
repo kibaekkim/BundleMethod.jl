@@ -17,6 +17,7 @@ mutable struct BasicMethod <: AbstractMethod
 
     y::Array{Float64,1}  # current iterate of dimension n
     fy::Array{Float64,1} # objective values at y for N functions
+    θ::Array{Float64,1}
     g::Dict{Int,SparseVector{Float64}} # subgradients of dimension n for N evaluate_functions
 
 
@@ -24,6 +25,7 @@ mutable struct BasicMethod <: AbstractMethod
     fx0::Array{Float64,1}	# current best objective values
     linerr::Float64         # linearization error
 
+    iter::Int # iteration counter
 
     statistics::Dict{Any,Any} # arbitrary collection of statistics
     start_time::Float64       # start time
@@ -45,6 +47,7 @@ mutable struct BasicMethod <: AbstractMethod
 
         bm.y = copy(init)
         bm.fy = zeros(N)
+        bm.θ = zeros(N)
         bm.g = Dict()
 
         bm.x0 = copy(init)
@@ -52,6 +55,7 @@ mutable struct BasicMethod <: AbstractMethod
         bm.fx0 = copy(bm.fy)
         bm.linerr = 0.0
 
+        bm.iter = 0
 
         bm.statistics = Dict(
             "total_eval_time" => 0.0)
@@ -71,6 +75,9 @@ get_objective_value(method::BasicMethod) = sum(method.fx0)
 
 # This sets the termination tolerance.
 set_bundle_tolerance!(method::BasicMethod, tol::Float64) = set_parameter(method.params, "ϵ_s", tol)
+
+# This returns BundleModel object.
+get_model(method::BasicMethod)::BundleModel = method.model
 
 # This creates an objective function to the bundle model.
 function add_objective_function!(method::BasicMethod)
@@ -141,6 +148,8 @@ function collect_model_solution!(method::BasicMethod)
         for j = 1:bundle.ncuts_per_iter
             method.θ[j] = JuMP.value(θ[j])
         end
+        method.x0 = copy(method.y)
+        method.fx0 = copy(method.fy)
     else
         @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
         println(model)
