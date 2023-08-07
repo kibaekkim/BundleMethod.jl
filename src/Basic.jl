@@ -24,6 +24,8 @@ mutable struct BasicMethod <: AbstractMethod
     fx0::Array{Float64,1}	# current best objective values
     linerr::Float64         # linearization error
 
+    cuts::Dict{JuMP.ConstraintRef,Dict{String,Any}}
+
     iter::Int # iteration counter
 
     statistics::Dict{Any,Any} # arbitrary collection of statistics
@@ -52,6 +54,8 @@ mutable struct BasicMethod <: AbstractMethod
         bm.x0 = copy(init)
         bm.fx0 = copy(bm.fy)
         bm.linerr = 0.0
+
+        bm.cuts = Dict()
 
         bm.iter = 0
 
@@ -99,6 +103,27 @@ function evaluate_functions!(method::BasicMethod)
     method.statistics["total_eval_time"] += time() - stime
 end
 
+function purge_bundles!(method::BasicMethod)
+    bundle = get_model(method)
+    model = get_model(bundle)
+    ncuts_removed = 0
+    ncols = JuMP.num_variables(model)
+    ncuts = length(method.cuts)
+    for (ref, cut) in method.cuts
+        if ncuts - ncuts_removed <= ncols
+            break
+        end
+        if cut["age"] >= method.params.max_age
+            JuMP.delete(model, ref)
+            delete!(method.cuts, ref)
+            ncuts_removed += 1
+        end
+    end
+    if ncuts_removed > 0
+        @printf("Removed %d inactive cuts.\n", ncuts_removed)
+    end
+end
+
 function add_bundles!(method::BasicMethod)
     y = method.y
     fy = method.fy
@@ -117,7 +142,18 @@ function add_bundles!(method::BasicMethod)
     for i = 1:bundle.ncuts_per_iter
         agg_fy = sum(fy[j] for j in bundle.cut_indices[i])
         agg_g = sum(g[j] for j in bundle.cut_indices[i])
-        add_bundle_constraint!(method, y, agg_fy, agg_g, θ[i])
+
+        cut_violation = agg_fy - method.θ[i]
+        if method.iter == 0 || cut_violation > method.params.ϵ_float
+            ref = add_bundle_constraint!(method, y, agg_fy, agg_g, θ[i])
+            method.cuts[ref] = Dict(
+                "age" => 0,
+                "dual" => 0.0,
+                "cut_index" => i,
+                "g" => agg_g,
+                "rhs" => agg_g' * y - agg_fy
+            )
+        end
     end
 end
 
@@ -126,7 +162,8 @@ function add_bundle_constraint!(
     bundle = get_model(method)
     model = get_model(bundle)
     x = model[:x]
-    @constraint(model, fy + sum(g[i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ)
+    ref = @constraint(model, fy + sum(g[i] * (x[i] - y[i]) for i = 1:bundle.n) <= θ)
+    return ref
 end
 
 # This updates the iteration information.
@@ -148,6 +185,13 @@ function collect_model_solution!(method::BasicMethod)
         end
         method.x0 = copy(method.y)
         method.fx0 = copy(method.fy)
+        for (ref, cut) in method.cuts
+            @assert JuMP.is_valid(get_jump_model(method), ref)
+            cut["dual"] = JuMP.dual(ref)
+            if cut["dual"] > -1e-6 #&& cut["α"] > 0.0
+                cut["age"] += 1
+            end
+        end
     else
         @error "Unexpected model solution status ($(JuMP.termination_status(model)))"
         println(model)
