@@ -135,19 +135,27 @@ function termination_test(method::ProximalMethod)
         return true
     end
     if method.sum_of_v >= -method.params.ϵ_s * (1 + abs(sum(method.fx0)))
-        println("TERMINATION: Optimal: v = ", method.sum_of_v)
+        if (method.params.print_output)
+            println("TERMINATION: Optimal: v = ", method.sum_of_v)
+        end
         return true
     end
     if method.iter >= method.params.maxiter
-        println("TERMINATION: Maximum number of iterations reached.")
+        if (method.params.print_output)
+            println("TERMINATION: Maximum number of iterations reached.")
+        end
         return true
     end
     if sum(method.fx0) <= method.params.obj_limit
-        println("TERMINATION: Dual objective limit reached.")
+        if (method.params.print_output)
+            println("TERMINATION: Dual objective limit reached.")
+        end
         return true
     end
     if time() - method.start_time > method.params.time_limit
-        println("TERMINATION: Time limit reached.")
+        if (method.params.print_output)
+            println("TERMINATION: Time limit reached.")
+        end
         return true
     end
     return false
@@ -266,7 +274,9 @@ function purge_bundles!(method::ProximalMethod)
         end
     end
     if ncuts_removed > 0
-        @printf("Removed %d inactive cuts.\n", ncuts_removed)
+        if (method.params.print_output)
+            @printf("Removed %d inactive cuts.\n", ncuts_removed)
+        end
     end
 end
 
@@ -309,14 +319,16 @@ function display_info!(method::ProximalMethod)
         nrows += num_constraints(model, AffExpr, tp)
     end
     fx0 = sum(method.fx0)
-    @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
-        method.iter, num_variables(model), nrows, 
-        fx0, 
-        sum(method.fy), 
-        method.sum_of_v + fx0, 
-        method.sum_of_v, 
-        method.u, method.i, 
-        sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
+    if (method.params.print_output)
+        @printf("Iter %4d: ncols %5d, nrows %5d, fx0 %+e, fy %+e, m %+e, v %e, u %e, i %+d, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
+            method.iter, num_variables(model), nrows, 
+            fx0, 
+            sum(method.fy), 
+            method.sum_of_v + fx0, 
+            method.sum_of_v, 
+            method.u, method.i, 
+            sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
+    end
 end
 
 """
