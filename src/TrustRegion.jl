@@ -186,19 +186,27 @@ function termination_test(method::TrustRegionMethod)::Bool
         return true
     end
     if sum(method.fx0) - sum(method.θ) <= method.params.ϵ_s * (1 + abs(sum(method.fx0))) #&& !is_trust_region_binding(method)
-        println("TERMINATION: Optimal")
+        if (method.params.print_output)
+            println("TERMINATION: Optimal")
+        end
         return true
     end
     if method.iter >= method.params.maxiter
-        println("TERMINATION: Maximum number of iterations reached.")
+        if (method.params.print_output)
+            println("TERMINATION: Maximum number of iterations reached.")
+        end
         return true
     end
     if sum(method.fx0) <= method.params.obj_limit
-        println("TERMINATION: Dual objective limit reached.")
+        if (method.params.print_output)
+            println("TERMINATION: Dual objective limit reached.")
+        end
         return true
     end
     if time() - method.start_time > method.params.time_limit
-        println("TERMINATION: Time limit reached.")
+        if (method.params.print_output)
+            println("TERMINATION: Time limit reached.")
+        end
         return true
     end
     return false
@@ -243,9 +251,11 @@ function display_info!(method::TrustRegionMethod)
     for tp in [MOI.LessThan{Float64}, MOI.EqualTo{Float64}, MOI.GreaterThan{Float64}]
         nrows += num_constraints(model, AffExpr, tp)
     end
-    @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
-        method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
-        sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
+    if (method.params.print_output)
+        @printf("Iter %4d: ncols %5d, nrows %5d, Δ %e, fx0 %+e, m %+e, fy %+e, linerr %+e, master time %6.1fs, eval time %6.1fs, time %6.1fs\n",
+            method.iter, num_variables(model), nrows, method.Δ, sum(method.fx0), sum(method.θ), sum(method.fy), method.linerr, 
+            sum(method.model.time), method.statistics["total_eval_time"], time() - method.start_time)
+    end
 end
 
 function update_iteration!(method::TrustRegionMethod)
