@@ -1,5 +1,5 @@
 Base.@kwdef mutable struct Parameters
-    print_output::Bool = True #print output
+    print_output::Bool = true #print output
     maxiter::Int = 3000     # maximum number of iterations
     ncuts_per_iter::Int = 1 # number of cuts added per iteration
     obj_limit::Float64 = -Inf # termination condition
