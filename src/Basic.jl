@@ -32,6 +32,11 @@ mutable struct BasicMethod <: AbstractMethod
     start_time::Float64       # start time
 
     params::Parameters
+    status::Int
+    #1: Optimal
+    #2: Iteration limit
+    #3: Dual objective limit
+    #4: Time limit
 
     function BasicMethod(n::Int, N::Int, func;
         init::Array{Float64,1} = zeros(n),
@@ -64,6 +69,7 @@ mutable struct BasicMethod <: AbstractMethod
         bm.start_time = time()
 
         bm.params = params
+        bm.status = 0
 
         return bm
     end
@@ -233,24 +239,28 @@ function termination_test(method::BasicMethod)::Bool
         if (method.params.print_output)
             println("TERMINATION: Optimal")
         end
+        method.status = 1
         return true
     end
     if method.iter >= method.params.maxiter
         if (method.params.print_output)
             println("TERMINATION: Maximum number of iterations reached.")
         end
+        method.status = 2
         return true
     end
     if sum(method.fx0) <= method.params.obj_limit
         if (method.params.print_output)
             println("TERMINATION: Dual objective limit reached.")
         end
+        method.status = 3
         return true
     end
     if time() - method.start_time > method.params.time_limit
         if (method.params.print_output)
             println("TERMINATION: Time limit reached.")
         end
+        method.status = 4
         return true
     end
     return false
