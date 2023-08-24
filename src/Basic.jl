@@ -182,7 +182,7 @@ end
 function collect_model_solution!(method::BasicMethod)
     bundle = get_model(method)
     model = get_model(bundle)
-    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
+    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED]
         x = model[:x]
         θ = model[:θ]
         for i = 1:bundle.n
