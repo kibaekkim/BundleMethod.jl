@@ -161,6 +161,9 @@ function add_bundles!(method::BasicMethod)
                 "g" => agg_g,
                 "rhs" => agg_g' * y - agg_fy
             )
+            println(cut_violation)
+            println(method.cuts[ref]["rhs"])
+            println(method.cuts[ref]["g"])
         end
     end
 end
