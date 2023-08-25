@@ -161,7 +161,7 @@ function add_bundles!(method::BasicMethod)
                 "g" => agg_g,
                 "rhs" => agg_g' * y - agg_fy
             )
-            @printf("cut violation: %0.20f, fy: %0.20f", cut_violation, agg_fy)
+            @printf("cut violation: %0.20f, fy: %0.20f\n", cut_violation, agg_fy)
         end
     end
 end
