@@ -151,7 +151,7 @@ function add_bundles!(method::BasicMethod)
         agg_fy = sum(fy[j] for j in bundle.cut_indices[i])
         agg_g = sum(g[j] for j in bundle.cut_indices[i])
 
-        cut_violation = agg_fy - method.θ[i]
+        cut_violation = agg_fy - method.θ[i] / max(abs(agg_fy), abs(method.θ[i]))
         if method.iter == 0 || cut_violation > method.params.ϵ_float
             ref = add_bundle_constraint!(method, y, agg_fy, agg_g, θ[i])
             method.cuts[ref] = Dict(
@@ -182,7 +182,7 @@ end
 function collect_model_solution!(method::BasicMethod)
     bundle = get_model(method)
     model = get_model(bundle)
-    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED]
+    if JuMP.termination_status(model) in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED]
         x = model[:x]
         θ = model[:θ]
         for i = 1:bundle.n
