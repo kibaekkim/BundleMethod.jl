@@ -154,14 +154,16 @@ function add_bundles!(method::BasicMethod)
         cut_violation = agg_fy - method.θ[i]
         if method.iter == 0 || cut_violation > method.params.ϵ_float
             rhs = agg_g' * y - agg_fy
-            validcut = true
-            for (key, val) in method.cuts
-                if norm(agg_g - val["g"]) < method.params.ϵ_float && norm(rhs - val["rhs"]) < method.params.ϵ_float
-                    validcut = false
-                    break
-                end
-            end 
-            if (validcut)
+            newcut = true
+            if cut_violation < method.params.ϵ_float * 1e3
+                for (key, val) in method.cuts
+                    if norm(agg_g - val["g"]) < method.params.ϵ_float && norm(rhs - val["rhs"]) < method.params.ϵ_float
+                        newcut = false
+                        break
+                    end
+                end 
+            end
+            if (newcut)
                 ref = add_bundle_constraint!(method, y, agg_fy, agg_g, θ[i])
                 method.cuts[ref] = Dict(
                     "age" => 0,
