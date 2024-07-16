@@ -23,13 +23,13 @@ Please see examples in `./examples`.
 ## Citing this package
 
 ```
-@misc{BundleMethod.jl.0.3.2,
+@misc{BundleMethod.jl.0.4.0,
   author       = {Kim, Kibaek and Zhang, Weiqi and Nakao, Hideaki and Schanen, Michel},
   title        = {{BundleMethod.jl: Implementation of Bundle Methods in Julia}},
   month        = Mar,
   year         = 2021,
   doi          = {10.5281/zenodo.4574897},
-  version      = {0.3.2},
+  version      = {0.4.0},
   publisher    = {Zenodo},
   url          = {https://doi.org/10.5281/zenodo.4574897}
 }
