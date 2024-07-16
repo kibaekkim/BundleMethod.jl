@@ -1,7 +1,7 @@
 name = "BundleMethod"
 uuid = "e8a6717a-069f-43d5-9ac2-a49b1ec5be7b"
-authors = ["Kibaek Kim <kimk@anl.gov>"]
-version = "0.3.3"
+authors = ["Kibaek Kim <kimk@anl.gov>", "Weiqi Zhang <wzhang483@wisc.edu>", "Hideaki Nakao <nakaoh@umich.edu>"]
+version = "0.4.0"
 
 [deps]
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
